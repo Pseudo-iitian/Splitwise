@@ -8,12 +8,18 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB connection (only connect once)
-if (!global.mongoose) {
-  global.mongoose = mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('✅ MongoDB connected'))
-    .catch(err => console.error('❌ MongoDB connection failed:', err.message));
-}
+// ✅ Serverless DB connection
+let isConnected = false;
+
+const connectDB = async () => {
+  if (isConnected) return;
+
+  const conn = await mongoose.connect(process.env.MONGO_URI);
+  isConnected = conn.connections[0].readyState;
+  console.log('✅ MongoDB connected');
+};
+
+connectDB();
 
 // Routes
 app.use('/api/auth',        require('./routes/auth'));
@@ -21,12 +27,9 @@ app.use('/api/groups',      require('./routes/groups'));
 app.use('/api/expenses',    require('./routes/expenses'));
 app.use('/api/settlements', require('./routes/settlements'));
 
-app.get('/', (req, res) => {
+app.get('/api', (req, res) => {
   res.json({ msg: 'Splitwise API running ✅' });
 });
 
-// ❌ REMOVE THIS
-// app.listen(PORT, ...);
-
-// ✅ EXPORT THIS
+// ❌ NO app.listen
 module.exports = app;
