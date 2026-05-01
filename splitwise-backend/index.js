@@ -27,7 +27,7 @@ app.use('/api/groups',      require('./routes/groups'));
 app.use('/api/expenses',    require('./routes/expenses'));
 app.use('/api/settlements', require('./routes/settlements'));
 
-app.get('/api', (req, res) => {
+app.get('/', (req, res) => {
   res.json({ msg: 'Splitwise API running ✅' });
 });
 
