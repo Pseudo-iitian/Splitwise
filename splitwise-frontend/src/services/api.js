@@ -21,6 +21,7 @@ export const getMe    = ()     => api.get('/auth/me');
 export const getGroups   = ()        => api.get('/groups');
 export const createGroup = (data)    => api.post('/groups', data);
 export const getBalances = (groupId) => api.get(`/groups/${groupId}/balances`);
+export const getSettlementSummary = (groupId) => api.get(`/groups/${groupId}/settlement-summary`);
 
 // Expenses
 export const getExpenses = (groupId) => api.get(`/expenses/group/${groupId}`);
@@ -29,6 +30,8 @@ export const addExpense  = (data)    => api.post('/expenses', data);
 // Settlements
 export const settleUp       = (data)    => api.post('/settlements', data);
 export const getSettlements = (groupId) => api.get(`/settlements/group/${groupId}`);
+export const updateSettlement = (settlementId, data) => api.put(`/settlements/${settlementId}`, data);
+export const deleteSettlement = (settlementId) => api.delete(`/settlements/${settlementId}`);
 
 // Groups ke existing exports ke neeche yeh add karo
 export const deleteGroup = (groupId) => api.delete(`/groups/${groupId}`);
@@ -39,5 +42,8 @@ export const joinGroup       = (token)   => api.post(`/groups/join/${token}`);
 
 export const updateExpense = (expenseId, data) => api.put(`/expenses/${expenseId}`, data);
 export const deleteExpense = (expenseId)       => api.delete(`/expenses/${expenseId}`);
+
+export const getDetailedBalances = (groupId) => api.get(`/groups/${groupId}/detailed-balances`);
+
 
 export default api;

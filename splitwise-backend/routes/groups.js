@@ -2,9 +2,13 @@ const express  = require('express');
 const router   = express.Router();
 const Group    = require('../models/Group');
 const auth     = require('../middleware/auth');
-const { calculateBalances } = require('../utils/splitHelpers');
 const crypto = require('crypto');
 require('dotenv').config();
+const {
+  calculateBalances,
+  calculateDetailedBalances,
+  calculateSettlementSummary
+} = require('../utils/splitHelpers');
 
 
 router.post('/', auth, async (req, res) => {
@@ -102,5 +106,27 @@ router.post('/join/:token', auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+// GET /api/groups/:groupId/detailed-balances
+router.get('/:groupId/detailed-balances', auth, async (req, res) => {
+  try {
+    const balances = await calculateDetailedBalances(req.params.groupId);
+    res.json(balances);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/groups/:groupId/settlement-summary
+router.get('/:groupId/settlement-summary', auth, async (req, res) => {
+  try {
+    const summary = await calculateSettlementSummary(req.params.groupId, req.user.id);
+    res.json(summary);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 module.exports = router;

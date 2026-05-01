@@ -8,6 +8,7 @@ import GroupDetail from './pages/GroupDetail';
 import AddExpense  from './pages/AddExpense';
 import JoinGroup from './pages/JoinGroup';
 import EditExpense from './pages/EditExpense';
+import SettleUp from './pages/SettleUp';
 
 
 
@@ -34,6 +35,9 @@ export default function App() {
         }/>
         <Route path="/group/:groupId/edit-expense/:expenseId" element={
           <PrivateRoute><EditExpense /></PrivateRoute>
+        }/>
+        <Route path="/group/:groupId/settle-up" element={
+          <PrivateRoute><SettleUp /></PrivateRoute>
         }/>
       </Routes>
     </BrowserRouter>
