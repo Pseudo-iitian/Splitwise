@@ -133,11 +133,11 @@ export default function SettleUp() {
     <div className="min-h-screen bg-gray-950 text-white">
       <Toaster />
 
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center gap-4">
-        <button onClick={goBack} className="text-gray-400 hover:text-white transition">
+      <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center gap-4">
+        <button onClick={goBack} className="text-gray-400 hover:text-white transition shrink-0">
           <FiArrowLeft size={20} />
         </button>
-        <h1 className="font-bold text-lg">
+        <h1 className="font-bold text-lg truncate">
           {step === 'overview' && 'Settle up'}
           {step === 'payer' && 'Who is paying?'}
           {step === 'receiver' && 'Who is getting paid?'}
@@ -147,9 +147,9 @@ export default function SettleUp() {
       </div>
 
       {step === 'overview' && (
-        <div className="max-w-2xl mx-auto px-6 py-6 space-y-5">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
           {summary.userDebts.length === 0 ? (
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-8 text-center">
               <FiCheckCircle className="mx-auto mb-3 text-emerald-400" size={32} />
               <p className="text-lg font-semibold">{user?.name || 'You'} is settled up</p>
               <p className="text-sm text-gray-500 mt-1">No payment is pending from your side.</p>
@@ -160,10 +160,10 @@ export default function SettleUp() {
                 <button
                   key={debt.id}
                   onClick={() => chooseDebt(debt)}
-                  className="w-full bg-gray-900 border border-gray-800 hover:border-emerald-500 rounded-2xl p-4 transition text-left flex items-center justify-between gap-4"
+                  className="w-full bg-gray-900 border border-gray-800 hover:border-emerald-500 rounded-2xl p-4 transition text-left flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${getColor(debt.name)}`}>
+                  <div className="flex items-center gap-3 min-w-0 w-full">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${getColor(debt.name)}`}>
                       {getInitial(debt.name)}
                     </div>
                     <div className="min-w-0">
@@ -171,7 +171,7 @@ export default function SettleUp() {
                       <p className="text-xs text-gray-500 truncate">{debt.email}</p>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 self-end sm:self-auto">
                     <p className="text-xs text-red-300 uppercase tracking-wide">you owe</p>
                     <p className="text-red-400 font-bold text-lg">₹{debt.amount.toFixed(2)}</p>
                   </div>
@@ -181,19 +181,19 @@ export default function SettleUp() {
           )}
 
           {myBalance && (
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center justify-between">
-              <div>
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-sm text-gray-400">Your total balance</p>
-                <p className="font-medium">{user?.name}</p>
+                <p className="font-medium truncate">{user?.name}</p>
               </div>
               {Math.abs(myBalance.amount) < 0.01 ? (
-                <span className="text-gray-400 text-sm flex items-center gap-1">
+                <span className="text-gray-400 text-sm flex items-center gap-1 self-end sm:self-auto">
                   <FiCheck size={13} /> settled up
                 </span>
               ) : myBalance.amount < 0 ? (
-                <span className="text-red-400 font-semibold">borrowes ₹{Math.abs(myBalance.amount).toFixed(2)}</span>
+                <span className="text-red-400 font-semibold self-end sm:self-auto">borrowes ₹{Math.abs(myBalance.amount).toFixed(2)}</span>
               ) : (
-                <span className="text-emerald-400 font-semibold">gets ₹{myBalance.amount.toFixed(2)}</span>
+                <span className="text-emerald-400 font-semibold self-end sm:self-auto">gets ₹{myBalance.amount.toFixed(2)}</span>
               )}
             </div>
           )}
@@ -232,7 +232,7 @@ export default function SettleUp() {
       )}
 
       {step === 'amount' && (
-        <div className="max-w-lg mx-auto px-6 py-8">
+        <div className="max-w-lg mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <PaymentPreview paidBy={paidBy} paidTo={paidTo} getColor={getColor} getInitial={getInitial} />
           <div className="flex items-center justify-center gap-3 mb-8">
             <div className="w-12 h-12 border border-gray-600 rounded-xl flex items-center justify-center text-xl">₹</div>
@@ -241,7 +241,7 @@ export default function SettleUp() {
               min="1"
               value={amount}
               onChange={e => setAmount(e.target.value)}
-              className="text-4xl font-bold bg-transparent text-white border-b-2 border-emerald-500 outline-none w-44 text-center"
+              className="text-3xl sm:text-4xl font-bold bg-transparent text-white border-b-2 border-emerald-500 outline-none w-36 sm:w-44 text-center"
               placeholder="0.00"
               autoFocus
             />
@@ -257,14 +257,14 @@ export default function SettleUp() {
       )}
 
       {step === 'confirm' && (
-        <div className="max-w-lg mx-auto px-6 py-8">
+        <div className="max-w-lg mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <PaymentPreview paidBy={paidBy} paidTo={paidTo} getColor={getColor} getInitial={getInitial} />
-          <p className="text-center text-white text-lg mb-1">
+          <p className="text-center text-white text-base sm:text-lg mb-1 break-words">
             {paidBy?.name} paid <span className="font-bold">{paidTo?.name}</span>
           </p>
-          <p className="text-center text-gray-400 text-sm mb-6">{paidTo?.email}</p>
+          <p className="text-center text-gray-400 text-sm mb-6 break-all">{paidTo?.email}</p>
           <div className="text-center mb-8">
-            <span className="text-5xl font-bold">₹{parseFloat(amount || 0).toFixed(2)}</span>
+            <span className="text-4xl sm:text-5xl font-bold">₹{parseFloat(amount || 0).toFixed(2)}</span>
           </div>
           <button
             onClick={handleSettle}
@@ -290,11 +290,11 @@ function MemberList({ members, userId, getColor, getInitial, disabledIds = [], o
             key={member.id}
             onClick={() => !disabled && onSelect(member)}
             disabled={disabled}
-            className={`w-full flex items-center gap-4 px-6 py-4 border-b border-gray-800 transition text-left ${
+            className={`w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-gray-800 transition text-left ${
               disabled ? 'opacity-40 cursor-not-allowed bg-gray-900/40' : 'hover:bg-gray-900 cursor-pointer'
             }`}
           >
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${getColor(member.name)}`}>
+            <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${getColor(member.name)}`}>
               {getInitial(member.name)}
             </div>
             <div className="flex-1 min-w-0">
@@ -305,13 +305,13 @@ function MemberList({ members, userId, getColor, getInitial, disabledIds = [], o
               <p className="text-xs text-gray-500 truncate">{member.email}</p>
             </div>
             {disabled ? (
-              <span className="text-gray-500 text-sm">same person</span>
+              <span className="text-gray-500 text-sm shrink-0">same person</span>
             ) : (
-              <>
+              <span className="text-right shrink-0">
                 {member.amount < -0.01 && <span className="text-red-400 text-sm">borrowes ₹{Math.abs(member.amount).toFixed(2)}</span>}
                 {member.amount > 0.01 && <span className="text-emerald-400 text-sm">gets ₹{member.amount.toFixed(2)}</span>}
                 {Math.abs(member.amount) < 0.01 && <span className="text-gray-500 text-sm">settled</span>}
-              </>
+              </span>
             )}
           </button>
         );
@@ -322,16 +322,16 @@ function MemberList({ members, userId, getColor, getInitial, disabledIds = [], o
 
 function PaymentPreview({ paidBy, paidTo, getColor, getInitial }) {
   return (
-    <div className="flex items-center justify-center gap-6 mb-8">
+    <div className="flex items-center justify-center gap-3 sm:gap-6 mb-8 min-w-0">
       <div className="text-center">
-        <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-xl mx-auto mb-2 ${getColor(paidBy?.name)}`}>
+        <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-xl mx-auto mb-2 ${getColor(paidBy?.name)}`}>
           {getInitial(paidBy?.name)}
         </div>
         <p className="text-sm text-gray-400 max-w-28 truncate">{paidBy?.name}</p>
       </div>
       <FiArrowRight size={24} className="text-gray-400" />
       <div className="text-center">
-        <div className={`w-16 h-16 rounded-full flex items-center justify-center font-bold text-xl mx-auto mb-2 ${getColor(paidTo?.name)}`}>
+        <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-xl mx-auto mb-2 ${getColor(paidTo?.name)}`}>
           {getInitial(paidTo?.name)}
         </div>
         <p className="text-sm text-gray-400 max-w-28 truncate">{paidTo?.name}</p>

@@ -90,35 +90,35 @@ export default function Dashboard() {
       <Toaster />
 
       {/* Navbar */}
-      <nav className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-sm">
+      <nav className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">
             S
           </div>
-          <span className="font-bold text-lg">Splitwise</span>
+          <span className="font-bold text-lg truncate">Splitwise</span>
         </div>
-        <div className="flex items-center gap-4">
-          <span className="text-gray-400 text-sm">Hi, {user?.name} 👋</span>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+          <span className="text-gray-400 text-sm truncate max-w-[120px] sm:max-w-none">Hi, {user?.name}</span>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 text-gray-400 hover:text-red-400 transition text-sm"
+            className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-red-400 transition text-sm shrink-0"
           >
-            <FiLogOut /> Logout
+            <FiLogOut /> <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <div className="min-w-0">
             <h1 className="text-2xl font-bold">Your Groups</h1>
             <p className="text-gray-400 text-sm mt-1">{groups.length} groups total</p>
           </div>
           <button
             onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition"
+            className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition w-full sm:w-auto"
           >
             <FiPlus /> New Group
           </button>
@@ -140,7 +140,7 @@ export default function Dashboard() {
             {groups.map(group => (
               <div
                 key={group._id}
-                className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-6 transition relative"
+                className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 sm:p-6 transition relative min-w-0"
               >
                 {/* 3-dot menu button */}
                 <button
@@ -173,15 +173,15 @@ export default function Dashboard() {
 
                 {/* Card content — clickable to open group */}
                 <Link to={`/group/${group._id}`} className="block">
-                  <div className="flex items-start justify-between mb-4 pr-6">
-                    <div className={`p-2 rounded-xl border text-lg ${categoryColor[group.category]}`}>
+                  <div className="flex items-start justify-between gap-3 mb-4 pr-6">
+                    <div className={`p-2 rounded-xl border text-lg shrink-0 ${categoryColor[group.category]}`}>
                       {categoryIcon[group.category]}
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full border ${categoryColor[group.category]}`}>
+                    <span className={`text-xs px-2 py-1 rounded-full border truncate max-w-[120px] ${categoryColor[group.category]}`}>
                       {group.category}
                     </span>
                   </div>
-                  <h3 className="font-semibold text-lg">{group.name}</h3>
+                  <h3 className="font-semibold text-lg truncate">{group.name}</h3>
                   <p className="text-gray-400 text-sm mt-1 flex items-center gap-1">
                     <FiUsers size={12} /> {group.members.length} members
                   </p>
@@ -195,7 +195,7 @@ export default function Dashboard() {
       {/* Create Group Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-6">Create New Group</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
@@ -221,7 +221,7 @@ export default function Dashboard() {
                   <option value="other">📦 Other</option>
                 </select>
               </div>
-              <div className="flex gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -244,7 +244,7 @@ export default function Dashboard() {
       {/* Delete Confirmation Modal */}
       {deleteModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-sm">
             <div className="text-center mb-6">
               <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FiTrash2 className="text-red-400" size={24} />
@@ -256,7 +256,7 @@ export default function Dashboard() {
                 This cannot be undone.
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setDeleteModal(null)}
                 className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition"

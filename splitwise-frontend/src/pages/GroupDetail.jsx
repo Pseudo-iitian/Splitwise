@@ -173,43 +173,46 @@ export default function GroupDetail() {
       <Toaster />
 
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
           <button
             onClick={() => navigate("/")}
-            className="text-gray-400 hover:text-white transition"
+            className="text-gray-400 hover:text-white transition shrink-0"
           >
             <FiArrowLeft size={20} />
           </button>
-          <div>
-            <h1 className="font-bold text-lg">Group Detail</h1>
+          <div className="min-w-0">
+            <h1 className="font-bold text-lg truncate">Group Detail</h1>
             <p className="text-gray-400 text-sm">{expenses.length} expenses</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           <button
             onClick={handleInvite}
-            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 bg-gray-800 hover:bg-gray-700 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition min-w-0"
           >
-            <FiShare2 size={14} /> Invite
+            <FiShare2 size={14} className="shrink-0" />
+            <span className="truncate">Invite</span>
           </button>
           <Link
             to={`/group/${groupId}/add-expense`}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition min-w-0"
           >
-            <FiPlus /> Add Expense
+            <FiPlus className="shrink-0" />
+            <span className="truncate">Add</span>
           </Link>
           <button
             onClick={() => navigate("/group/" + groupId + "/settle-up")}
-            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition"
+            className="flex items-center justify-center gap-1.5 sm:gap-2 bg-orange-500 hover:bg-orange-600 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition min-w-0"
           >
-            <FiDollarSign size={14} /> Settle Up
+            <FiDollarSign size={14} className="shrink-0" />
+            <span className="truncate">Settle</span>
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-800 px-6">
+      <div className="flex border-b border-gray-800 px-4 sm:px-6 overflow-x-auto">
         {["expenses", "balances"].map((tab) => (
           <button
             key={tab}
@@ -225,7 +228,7 @@ export default function GroupDetail() {
         ))}
       </div>
 
-      <div className="max-w-2xl mx-auto px-6 py-6">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
         {loading ? (
           <div className="text-center text-gray-400 py-20">Loading...</div>
         ) : activeTab === "expenses" ? (
@@ -254,9 +257,9 @@ export default function GroupDetail() {
                       role="button"
                       tabIndex={0}
                     >
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-11 h-11 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
                             <FiDollarSign className="text-emerald-400" size={20} />
                           </div>
                           <div className="min-w-0">
@@ -268,7 +271,7 @@ export default function GroupDetail() {
                             </p>
                           </div>
                         </div>
-                        <span className="text-emerald-400 font-bold text-lg whitespace-nowrap">
+                        <span className="text-emerald-400 font-bold text-base sm:text-lg whitespace-nowrap shrink-0">
                           ₹{settlement.amount.toFixed(2)}
                         </span>
                       </div>
@@ -284,15 +287,15 @@ export default function GroupDetail() {
                     className="bg-gray-900 border border-gray-800 rounded-2xl p-4"
                   >
                     {/* Top row */}
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h3 className="font-semibold">{exp.description}</h3>
-                        <p className="text-gray-400 text-sm mt-0.5">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <h3 className="font-semibold truncate">{exp.description}</h3>
+                        <p className="text-gray-400 text-sm mt-0.5 truncate">
                           Paid by {exp.paidBy?.name}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-emerald-400 font-bold text-lg">
+                      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                        <span className="text-emerald-400 font-bold text-base sm:text-lg">
                           ₹{exp.amount}
                         </span>
                         <button
@@ -351,10 +354,10 @@ export default function GroupDetail() {
                         key={`${item.paidBy.id}-${item.paidTo.id}-${index}`}
                         className="bg-gray-900 border border-gray-800 rounded-2xl p-4"
                       >
-                        <p className="font-medium">
+                        <p className="font-medium text-sm sm:text-base break-words">
                           {item.paidBy.name} borrows ₹{item.amount.toFixed(2)} from {item.paidTo.name}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 mt-1 break-all">
                           {item.paidBy.email} owes {item.paidTo.email}
                         </p>
                       </div>
@@ -370,22 +373,22 @@ export default function GroupDetail() {
                   {Object.entries(balances).map(([userId, balance]) => (
                     <div
                       key={userId}
-                      className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center justify-between"
+                      className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
+                      <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+                        <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center shrink-0">
                           <FiUsers className="text-gray-400" />
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">{balance.name || userId.slice(-6)}</p>
-                          <p className="text-xs text-gray-500">{balance.email || "Group member"}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{balance.name || userId.slice(-6)}</p>
+                          <p className="text-xs text-gray-500 truncate">{balance.email || "Group member"}</p>
                         </div>
                       </div>
                       {Math.abs(balance.amount) < 0.01 ? (
-                        <span className="text-gray-400 text-sm">is settled up</span>
+                        <span className="text-gray-400 text-sm self-end sm:self-auto">is settled up</span>
                       ) : (
                         <span
-                          className={`font-bold text-lg ${balance.amount > 0 ? "text-emerald-400" : "text-red-400"}`}
+                          className={`font-bold text-lg self-end sm:self-auto ${balance.amount > 0 ? "text-emerald-400" : "text-red-400"}`}
                         >
                           {balance.amount > 0 ? "+" : "-"}₹{Math.abs(balance.amount).toFixed(2)}
                         </span>
@@ -402,7 +405,7 @@ export default function GroupDetail() {
       {/* Invite Modal */}
       {showInvite && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="text-center mb-6">
               <div className="w-14 h-14 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FiShare2 className="text-emerald-400" size={24} />
@@ -412,7 +415,7 @@ export default function GroupDetail() {
                 Share this link to invite people to your group
               </p>
             </div>
-            <div className="bg-gray-800 rounded-xl p-4 mb-4 text-sm text-gray-300 leading-relaxed">
+            <div className="bg-gray-800 rounded-xl p-4 mb-4 text-sm text-gray-300 leading-relaxed break-words">
               Hey! Join my group on Splitwise Clone 🎉
               <br />
               Click the link below to join:
@@ -444,7 +447,7 @@ export default function GroupDetail() {
       {/* Edit/Delete Payment Modal */}
       {settlementModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-sm">
             <div className="text-center mb-6">
               <div className="w-14 h-14 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FiDollarSign className="text-emerald-400" size={24} />
@@ -502,7 +505,7 @@ export default function GroupDetail() {
       {/* Delete Expense Modal */}
       {deleteModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-sm">
             <div className="text-center mb-6">
               <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FiTrash2 className="text-red-400" size={24} />
@@ -516,7 +519,7 @@ export default function GroupDetail() {
                 ? This cannot be undone.
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setDeleteModal(null)}
                 className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition"

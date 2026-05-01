@@ -35,7 +35,7 @@ export default function JoinGroup() {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
       <Toaster />
-      <div className="text-center">
+      <div className="text-center max-w-sm">
         {status === 'joining' && (
           <>
             <div className="text-5xl mb-4 animate-pulse">🔗</div>
@@ -54,7 +54,7 @@ export default function JoinGroup() {
           <>
             <div className="text-5xl mb-4">❌</div>
             <h2 className="text-white text-xl font-bold">Invalid Link</h2>
-            <p className="text-gray-400 mt-2">This invite link is invalid or expired</p>
+            <p className="text-gray-400 mt-2 break-words">This invite link is invalid or expired</p>
             <button
               onClick={() => navigate('/')}
               className="mt-4 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded-xl transition"

@@ -93,20 +93,20 @@ export default function AddExpense() {
       <Toaster />
 
       {/* Header */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center gap-4">
+      <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center gap-4">
         <button
           onClick={() => navigate(`/group/${groupId}`)}
-          className="text-gray-400 hover:text-white transition"
+          className="text-gray-400 hover:text-white transition shrink-0"
         >
           <FiArrowLeft size={20} />
         </button>
-        <div>
+        <div className="min-w-0">
           <h1 className="font-bold text-lg">Add Expense</h1>
-          <p className="text-gray-400 text-sm">{group?.name}</p>
+          <p className="text-gray-400 text-sm truncate">{group?.name}</p>
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-6 py-8">
+      <div className="max-w-lg mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <form onSubmit={handleSubmit} className="space-y-6">
 
           {/* Description */}
@@ -161,23 +161,23 @@ export default function AddExpense() {
                     <div
                       key={memberId}
                       onClick={() => setForm({ ...form, paidBy: memberId })}
-                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${
+                      className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition ${
                         selected
                           ? 'border-blue-500 bg-blue-500/10'
                           : 'border-gray-700 bg-gray-900 hover:border-gray-500'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
                           selected ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-400'
-                        }`}>
+                        } shrink-0`}>
                           {name[0]?.toUpperCase()}
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
                             {name}{isMe && <span className="text-xs text-gray-400 ml-1">(you)</span>}
                           </p>
-                          <p className="text-xs text-gray-500">{email}</p>
+                          <p className="text-xs text-gray-500 truncate">{email}</p>
                         </div>
                       </div>
                       {/* Radio */}
@@ -233,24 +233,24 @@ export default function AddExpense() {
                     <div
                       key={memberId}
                       onClick={() => toggleMember(memberId)}
-                      className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${
+                      className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition ${
                         selected
                           ? 'border-emerald-500 bg-emerald-500/10'
                           : 'border-gray-700 bg-gray-900 hover:border-gray-500'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
                           selected ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-400'
-                        }`}>
+                        } shrink-0`}>
                           {name[0]?.toUpperCase()}
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">{name}</p>
-                          <p className="text-xs text-gray-500">{email}</p>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{name}</p>
+                          <p className="text-xs text-gray-500 truncate">{email}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                         {selected && form.splitType === 'equal' && form.amount && (
                           <span className="text-emerald-400 text-sm font-medium">
                             ₹{perPersonAmount()}
@@ -271,14 +271,14 @@ export default function AddExpense() {
 
           {/* Summary */}
           {form.amount && form.members.length > 0 && (
-            <div className="bg-gray-900 border border-emerald-500/30 rounded-xl p-4 space-y-2">
+            <div className="bg-gray-900 border border-emerald-500/30 rounded-xl p-4 space-y-2 min-w-0">
               <p className="text-sm text-gray-400 font-medium">Summary</p>
               {form.paidBy && (
-                <p className="text-white text-sm">
+                <p className="text-white text-sm break-words">
                   💳 <span className="text-blue-400 font-medium">{getPaidByName()}</span> paid ₹{form.amount}
                 </p>
               )}
-              <p className="text-white text-sm">
+              <p className="text-white text-sm break-words">
                 👥 Split among{' '}
                 <span className="text-emerald-400 font-medium">{form.members.length} people</span>
                 {' '}— ₹{perPersonAmount()} each

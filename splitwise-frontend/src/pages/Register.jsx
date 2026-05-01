@@ -27,7 +27,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-8">
       <Toaster />
       <div className="w-full max-w-md">
 
@@ -39,7 +39,7 @@ export default function Register() {
           <p className="text-gray-400 mt-1">Start splitting expenses today</p>
         </div>
 
-        <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
+        <div className="bg-gray-900 rounded-2xl p-5 sm:p-8 border border-gray-800">
           <form onSubmit={handleSubmit} className="space-y-5">
 
             <div>
