@@ -1,0 +1,36 @@
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import Login       from './pages/Login';
+import Register    from './pages/Register';
+import Dashboard   from './pages/Dashboard';
+import GroupDetail from './pages/GroupDetail';
+import AddExpense  from './pages/AddExpense';
+import JoinGroup from './pages/JoinGroup';
+
+
+function PrivateRoute({ children }) {
+  const { isLoggedIn } = useSelector(state => state.auth);
+  return isLoggedIn ? children : <Navigate to="/login" />;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login"    element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/join/:token" element={<JoinGroup />} />
+        <Route path="/" element={
+          <PrivateRoute><Dashboard /></PrivateRoute>
+        }/>
+        <Route path="/group/:id" element={
+          <PrivateRoute><GroupDetail /></PrivateRoute>
+        }/>
+        <Route path="/group/:id/add-expense" element={
+          <PrivateRoute><AddExpense /></PrivateRoute>
+        }/>
+      </Routes>
+    </BrowserRouter>
+  );
+}
