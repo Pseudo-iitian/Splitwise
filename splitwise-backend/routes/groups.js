@@ -71,7 +71,9 @@ router.post('/:groupId/invite', auth, async (req, res) => {
     group.inviteToken = inviteToken;
     await group.save();
 
-    const inviteLink = `https://splitwise-five-phi.vercel.app/join/${inviteToken}`;
+
+    //change here...
+    const inviteLink = `${process.env.FRONTEND_URL}/join/${inviteToken}`;
     res.json({ inviteLink, token: inviteToken });
   } catch (err) {
     res.status(500).json({ error: err.message });

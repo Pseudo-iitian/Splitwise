@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { addExpense, getGroups } from '../services/api';
+import { getGroups, getExpenses, updateExpense } from '../services/api';
 import { useSelector } from 'react-redux';
 import toast, { Toaster } from 'react-hot-toast';
 import { FiArrowLeft, FiDollarSign } from 'react-icons/fi';
 
-export default function AddExpense() {
-  const { id: groupId } = useParams();
-  const navigate        = useNavigate();
-  const { user }        = useSelector(state => state.auth);
-  const [group, setGroup]     = useState(null);
+export default function EditExpense() {
+  const { groupId, expenseId } = useParams();
+  const navigate               = useNavigate();
+  const { user }               = useSelector(state => state.auth);
+
+  const [group,   setGroup]   = useState(null);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
+
   const [form, setForm] = useState({
     description: '',
     amount:      '',
@@ -20,52 +23,45 @@ export default function AddExpense() {
     splits:      [],
   });
 
-  useEffect(() => { fetchGroup(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const fetchGroup = async () => {
+  const fetchData = async () => {
     try {
-      const res   = await getGroups();
-      const found = res.data.find(g => g._id === groupId);
-      setGroup(found);
-      if (found) {
-        setForm(f => ({
-          ...f,
-          members: found.members.map(m => m._id || m),
-          paidBy:  user?.id || '',
-        }));
+      // Group aur expenses dono fetch karo
+      const [groupRes, expenseRes] = await Promise.all([
+        getGroups(),
+        getExpenses(groupId)
+      ]);
+
+      // Group find karo
+      const foundGroup = groupRes.data.find(g => g._id === groupId);
+      setGroup(foundGroup);
+
+      // Expense find karo
+      const foundExpense = expenseRes.data.find(e => e._id === expenseId);
+      if (!foundExpense) {
+        toast.error('Expense not found');
+        navigate(`/group/${groupId}`);
+        return;
       }
-    } catch {
-      toast.error('Failed to load group');
-    }
-  };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.description || !form.amount) {
-      toast.error('Please fill all fields');
-      return;
-    }
-    if (!form.paidBy) {
-      toast.error('Please select who paid');
-      return;
-    }
-    setLoading(true);
-    try {
-      await addExpense({
-        description: form.description,
-        amount:      parseFloat(form.amount),
-        groupId,
-        paidBy:      form.paidBy,
-        splitType:   form.splitType,
-        members:     form.members,
-        splits:      form.splits,
+      // Form mein expense data bharo
+      // Jo members pehle selected the unki IDs
+      const selectedMemberIds = foundExpense.splits.map(s => s.user?._id || s.user);
+
+      setForm({
+        description: foundExpense.description,
+        amount:      foundExpense.amount.toString(),
+        splitType:   foundExpense.splitType || 'equal',
+        paidBy:      foundExpense.paidBy?._id || foundExpense.paidBy,
+        members:     selectedMemberIds,
+        splits:      [],
       });
-      toast.success('Expense added!');
-      navigate(`/group/${groupId}`);
+
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to add expense');
+      toast.error('Failed to load data');
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
   };
 
@@ -88,6 +84,47 @@ export default function AddExpense() {
     return m?.name || 'Someone';
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.description || !form.amount) {
+      toast.error('Please fill all fields');
+      return;
+    }
+    if (!form.paidBy) {
+      toast.error('Please select who paid');
+      return;
+    }
+    if (form.members.length === 0) {
+      toast.error('Select at least one member to split');
+      return;
+    }
+    setLoading(true);
+    try {
+      await updateExpense(expenseId, {
+        description: form.description,
+        amount:      parseFloat(form.amount),
+        paidBy:      form.paidBy,
+        splitType:   form.splitType,
+        members:     form.members,
+        splits:      form.splits,
+      });
+      toast.success('Expense updated!');
+      navigate(`/group/${groupId}`);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (fetching) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Toaster />
@@ -101,7 +138,7 @@ export default function AddExpense() {
           <FiArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="font-bold text-lg">Add Expense</h1>
+          <h1 className="font-bold text-lg">Edit Expense</h1>
           <p className="text-gray-400 text-sm">{group?.name}</p>
         </div>
       </div>
@@ -111,9 +148,7 @@ export default function AddExpense() {
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Description
-            </label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
             <input
               type="text"
               required
@@ -126,9 +161,7 @@ export default function AddExpense() {
 
           {/* Amount */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Amount (₹)
-            </label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Amount (₹)</label>
             <div className="relative">
               <FiDollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -146,9 +179,7 @@ export default function AddExpense() {
           {/* Paid By */}
           {group && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Paid By
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Paid By</label>
               <div className="space-y-2">
                 {group.members.map(member => {
                   const memberId = member._id || member;
@@ -180,7 +211,6 @@ export default function AddExpense() {
                           <p className="text-xs text-gray-500">{email}</p>
                         </div>
                       </div>
-                      {/* Radio */}
                       <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
                         selected ? 'border-blue-500 bg-blue-500' : 'border-gray-600'
                       }`}>
@@ -195,9 +225,7 @@ export default function AddExpense() {
 
           {/* Split Type */}
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Split Type
-            </label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Split Type</label>
             <div className="grid grid-cols-3 gap-2">
               {['equal', 'percentage', 'exact'].map(type => (
                 <button
@@ -216,18 +244,22 @@ export default function AddExpense() {
             </div>
           </div>
 
-          {/* Split Between */}
+          {/* Split Between — SAARE GROUP MEMBERS DIKHENGE */}
           {group && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-gray-300 mb-1">
                 Split Between
               </label>
+              <p className="text-xs text-gray-500 mb-3">
+                ✅ = pehle se selected &nbsp;|&nbsp; ⬜ = baad mein join hua (select karo add karne ke liye)
+              </p>
               <div className="space-y-2">
                 {group.members.map(member => {
                   const memberId = member._id || member;
                   const name     = member.name  || 'Member';
                   const email    = member.email || '';
                   const selected = form.members.includes(memberId);
+                  const isNew    = !selected; // baad mein join hua
 
                   return (
                     <div
@@ -236,7 +268,7 @@ export default function AddExpense() {
                       className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${
                         selected
                           ? 'border-emerald-500 bg-emerald-500/10'
-                          : 'border-gray-700 bg-gray-900 hover:border-gray-500'
+                          : 'border-gray-700 bg-gray-900 hover:border-gray-600'
                       }`}
                     >
                       <div className="flex items-center gap-3">
@@ -246,10 +278,18 @@ export default function AddExpense() {
                           {name[0]?.toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-sm font-medium">{name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">{name}</p>
+                            {isNew && (
+                              <span className="text-xs bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 px-2 py-0.5 rounded-full">
+                                new member
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500">{email}</p>
                         </div>
                       </div>
+
                       <div className="flex items-center gap-3">
                         {selected && form.splitType === 'equal' && form.amount && (
                           <span className="text-emerald-400 text-sm font-medium">
@@ -272,7 +312,7 @@ export default function AddExpense() {
           {/* Summary */}
           {form.amount && form.members.length > 0 && (
             <div className="bg-gray-900 border border-emerald-500/30 rounded-xl p-4 space-y-2">
-              <p className="text-sm text-gray-400 font-medium">Summary</p>
+              <p className="text-sm text-gray-400 font-medium">Updated Summary</p>
               {form.paidBy && (
                 <p className="text-white text-sm">
                   💳 <span className="text-blue-400 font-medium">{getPaidByName()}</span> paid ₹{form.amount}
@@ -286,14 +326,23 @@ export default function AddExpense() {
             </div>
           )}
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition"
-          >
-            {loading ? 'Adding...' : 'Add Expense'}
-          </button>
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(`/group/${groupId}`)}
+              className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition"
+            >
+              {loading ? 'Saving...' : 'Update Expense'}
+            </button>
+          </div>
 
         </form>
       </div>

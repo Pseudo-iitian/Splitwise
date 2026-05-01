@@ -7,6 +7,8 @@ import Dashboard   from './pages/Dashboard';
 import GroupDetail from './pages/GroupDetail';
 import AddExpense  from './pages/AddExpense';
 import JoinGroup from './pages/JoinGroup';
+import EditExpense from './pages/EditExpense';
+
 
 
 function PrivateRoute({ children }) {
@@ -29,6 +31,9 @@ export default function App() {
         }/>
         <Route path="/group/:id/add-expense" element={
           <PrivateRoute><AddExpense /></PrivateRoute>
+        }/>
+        <Route path="/group/:groupId/edit-expense/:expenseId" element={
+          <PrivateRoute><EditExpense /></PrivateRoute>
         }/>
       </Routes>
     </BrowserRouter>

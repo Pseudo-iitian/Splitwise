@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: "https://splitwise-tres.vercel.app/api",
+//   baseURL: "https://splitwise-tres.vercel.app/api",
+    // baseURL: "http://localhost:5000/api",
+    baseURL: import.meta.env.VITE_BACKEND_URL,
 });
 
 api.interceptors.request.use((config) => {
@@ -34,5 +36,8 @@ export const deleteGroup = (groupId) => api.delete(`/groups/${groupId}`);
 // Invite
 export const generateInvite = (groupId) => api.post(`/groups/${groupId}/invite`);
 export const joinGroup       = (token)   => api.post(`/groups/join/${token}`);
+
+export const updateExpense = (expenseId, data) => api.put(`/expenses/${expenseId}`, data);
+export const deleteExpense = (expenseId)       => api.delete(`/expenses/${expenseId}`);
 
 export default api;
