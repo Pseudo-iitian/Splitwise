@@ -3,6 +3,12 @@ const router   = express.Router();
 const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
 const User     = require('../models/User');
+
+router.get('/', (req, res) => {
+  res.json({ msg: 'Auth API is working 🚀' });
+});
+
+
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
