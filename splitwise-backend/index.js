@@ -6,7 +6,7 @@ const cors     = require('cors');
 const app = express();
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'https://splitwise-tres.vercel.app'],
+  origin: ['http://localhost:5173', 'https://splitwise-tres.vercel.app','https://splitwise-five-phi.vercel.app'],
   credentials: true
 }));
 app.use(express.json());
