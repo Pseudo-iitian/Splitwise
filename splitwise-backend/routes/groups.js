@@ -71,7 +71,7 @@ router.post('/:groupId/invite', auth, async (req, res) => {
     group.inviteToken = inviteToken;
     await group.save();
 
-    const inviteLink = `${process.env.FRONTEND_URL}/join/${inviteToken}`;
+    const inviteLink = `https://splitwise-five-phi.vercel.app/join/${inviteToken}`;
     res.json({ inviteLink, token: inviteToken });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -84,7 +84,7 @@ router.post('/join/:token', auth, async (req, res) => {
     console.log("Incoming token:", req.params.token);
     const group = await Group.findOne({ inviteToken: req.params.token });
     console.log("Group found:", group);
-    
+
     if (!group) return res.status(404).json({ msg: 'Invalid or expired invite link' });
 
     // Already member hai?

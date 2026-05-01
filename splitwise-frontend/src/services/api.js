@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.BACKEND_BASE_URL,
+  baseURL: "https://splitwise-tres.vercel.app",
 });
 
 api.interceptors.request.use((config) => {
