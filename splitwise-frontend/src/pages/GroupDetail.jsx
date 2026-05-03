@@ -19,6 +19,8 @@ import {
   FiEdit2,
   FiTrash2,
   FiDollarSign,
+  FiCheckCircle,
+  FiXCircle,
 } from "react-icons/fi";
 
 export default function GroupDetail() {
@@ -39,6 +41,7 @@ export default function GroupDetail() {
   const [deleteModal, setDeleteModal] = useState(null);
   const [settlementModal, setSettlementModal] = useState(null);
   const [settlementAmount, setSettlementAmount] = useState("");
+  const [settlementExpenseId, setSettlementExpenseId] = useState("");
   const [savingSettlement, setSavingSettlement] = useState(false);
 
   useEffect(() => {
@@ -91,6 +94,7 @@ export default function GroupDetail() {
   const openSettlementModal = (settlement) => {
     setSettlementModal(settlement);
     setSettlementAmount(settlement.amount?.toString() || "");
+    setSettlementExpenseId(settlement.relatedExpense?._id || settlement.relatedExpense || "");
   };
 
   const handleUpdateSettlement = async () => {
@@ -105,10 +109,12 @@ export default function GroupDetail() {
       await updateSettlement(settlementModal._id, {
         amount,
         note: settlementModal.note,
+        relatedExpense: settlementExpenseId || null,
       });
       toast.success("Payment updated!");
       setSettlementModal(null);
       setSettlementAmount("");
+      setSettlementExpenseId("");
       fetchAll();
     } catch (err) {
       toast.error(err.response?.data?.msg || "Failed to update payment");
@@ -126,6 +132,7 @@ export default function GroupDetail() {
       toast.success("Payment deleted!");
       setSettlementModal(null);
       setSettlementAmount("");
+      setSettlementExpenseId("");
       fetchAll();
     } catch (err) {
       toast.error(err.response?.data?.msg || "Failed to delete payment");
@@ -159,6 +166,12 @@ export default function GroupDetail() {
     })),
   ].sort((a, b) => b.date - a.date);
 
+  const userDebts = settlementSummary.userDebts || [];
+  const totalUserDebt = userDebts.reduce(
+    (total, debt) => total + Number(debt.amount || 0),
+    0,
+  );
+
   const getSettlementText = (settlement) => {
     const paidById = settlement.paidBy?._id || settlement.paidBy?.id;
     const paidToId = settlement.paidTo?._id || settlement.paidTo?.id;
@@ -166,6 +179,23 @@ export default function GroupDetail() {
     const payeeName = paidToId === user?.id ? "you" : settlement.paidTo?.name;
 
     return `${payerName || "Someone"} paid ${payeeName || "someone"}`;
+  };
+
+  const getExpenseOptionsForSettlement = (settlement) => {
+    if (!settlement) return [];
+
+    const payerId = settlement.paidBy?._id || settlement.paidBy?.id || settlement.paidBy;
+    const receiverId = settlement.paidTo?._id || settlement.paidTo?.id || settlement.paidTo;
+
+    return expenses.filter((expense) => {
+      const expensePaidById = expense.paidBy?._id || expense.paidBy?.id || expense.paidBy;
+      const payerInSplit = expense.splits?.some((split) => {
+        const splitUserId = split.user?._id || split.user?.id || split.user;
+        return splitUserId === payerId;
+      });
+
+      return expensePaidById === receiverId && payerInSplit;
+    });
   };
 
   return (
@@ -233,6 +263,42 @@ export default function GroupDetail() {
           <div className="text-center text-gray-400 py-20">Loading...</div>
         ) : activeTab === "expenses" ? (
           <div className="space-y-3">
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
+                  <FiDollarSign className="text-amber-300" size={20} />
+                </div>
+                <div className="min-w-0 w-full">
+                  {userDebts.length > 0 ? (
+                    <>
+                      <p className="font-semibold text-amber-100">
+                        You owe ₹{totalUserDebt.toFixed(2)} overall
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {userDebts.map((debt) => (
+                          <p
+                            key={debt.id}
+                            className="text-sm text-amber-50/90 break-words"
+                          >
+                            You owe {debt.name || "Someone"} ₹
+                            {Number(debt.amount || 0).toFixed(2)}
+                          </p>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-amber-100">
+                        You are all settled up
+                      </p>
+                      <p className="text-sm text-amber-50/80 mt-1">
+                        No pending amount from your side in this group.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
             {activityItems.length === 0 ? (
               <div className="text-center py-20">
                 <div className="text-5xl mb-4">💸</div>
@@ -269,6 +335,11 @@ export default function GroupDetail() {
                             <p className="text-xs text-gray-500">
                               {item.date.toLocaleDateString("en-IN")}
                             </p>
+                            {settlement.relatedExpense && (
+                              <p className="text-xs text-emerald-300 mt-1 truncate">
+                                For {settlement.relatedExpense.description}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <span className="text-emerald-400 font-bold text-base sm:text-lg whitespace-nowrap shrink-0">
@@ -324,9 +395,14 @@ export default function GroupDetail() {
                       {exp.splits?.map((split) => (
                         <span
                           key={split._id}
-                          className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded-full"
+                          className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${
+                            split.settled
+                              ? "bg-emerald-500/10 text-emerald-300"
+                              : "bg-red-500/10 text-red-300"
+                          }`}
                         >
-                          {split.user?.name}: ₹{split.amount}
+                          {split.settled ? <FiCheckCircle size={12} /> : <FiXCircle size={12} />}
+                          <span>{split.user?.name}: ₹{Number(split.amount || 0).toFixed(2)}</span>
                         </span>
                       ))}
                     </div>
@@ -472,6 +548,24 @@ export default function GroupDetail() {
               />
             </div>
 
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Related expense
+              </label>
+              <select
+                value={settlementExpenseId}
+                onChange={(e) => setSettlementExpenseId(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
+              >
+                <option value="">Overall balance</option>
+                {getExpenseOptionsForSettlement(settlementModal).map((expense) => (
+                  <option key={expense._id} value={expense._id}>
+                    {expense.description} - ₹{Number(expense.amount || 0).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="space-y-3">
               <button
                 onClick={handleUpdateSettlement}
@@ -491,6 +585,7 @@ export default function GroupDetail() {
                 onClick={() => {
                   setSettlementModal(null);
                   setSettlementAmount("");
+                  setSettlementExpenseId("");
                 }}
                 disabled={savingSettlement}
                 className="w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-white py-3 rounded-xl transition"

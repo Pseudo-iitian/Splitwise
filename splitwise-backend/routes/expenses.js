@@ -1,8 +1,42 @@
 const express  = require('express');
 const router   = express.Router();
 const Expense  = require('../models/Expense');
+const Settlement = require('../models/Settlement');
 const auth     = require('../middleware/auth');
 const { splitEqually, splitByPercentage, splitByExact } = require('../utils/splitHelpers');
+
+async function attachSplitSettlementStatus(expenses) {
+  const expenseIds = expenses.map(expense => expense._id);
+  const settlements = await Settlement.find({ relatedExpense: { $in: expenseIds } });
+  const paidAmounts = {};
+
+  settlements.forEach(settlement => {
+    const expenseId = settlement.relatedExpense.toString();
+    const payerId = settlement.paidBy.toString();
+    const key = `${expenseId}:${payerId}`;
+    paidAmounts[key] = +((paidAmounts[key] || 0) + settlement.amount).toFixed(2);
+  });
+
+  return expenses.map(expense => {
+    const plainExpense = expense.toObject();
+    const paidById = plainExpense.paidBy?._id?.toString() || plainExpense.paidBy?.toString();
+
+    plainExpense.splits = plainExpense.splits.map(split => {
+      const splitUserId = split.user?._id?.toString() || split.user?.toString();
+      const settledAmount = splitUserId === paidById
+        ? split.amount
+        : (paidAmounts[`${plainExpense._id.toString()}:${splitUserId}`] || 0);
+
+      return {
+        ...split,
+        settledAmount,
+        settled: settledAmount >= split.amount - 0.009
+      };
+    });
+
+    return plainExpense;
+  });
+}
 
 router.post('/', auth, async (req, res) => {
   try {
@@ -34,7 +68,7 @@ router.get('/group/:groupId', auth, async (req, res) => {
       .populate('paidBy', 'name email')
       .populate('splits.user', 'name email')
       .sort({ date: -1 });
-    res.json(expenses);
+    res.json(await attachSplitSettlementStatus(expenses));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -4,6 +4,7 @@ const settlementSchema = new mongoose.Schema({
   paidBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User',  required: true },
   paidTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User',  required: true },
   amount: { type: Number, required: true },
+  relatedExpense: { type: mongoose.Schema.Types.ObjectId, ref: 'Expense' },
   note:   { type: String, default: '' },
   date:   { type: Date, default: Date.now }
 }, { timestamps: true });

@@ -139,12 +139,14 @@ async function calculateUserDebts(groupId, userId) {
     .populate('splits.user', 'name email');
   const settlements = await Settlement.find({ group: groupId })
     .populate('paidBy', 'name email')
-    .populate('paidTo', 'name email');
+    .populate('paidTo', 'name email')
+    .populate('relatedExpense', 'description amount');
 
   const debts = {};
+  const linkedPayments = {};
   const currentUserId = userId.toString();
 
-  const ensureDebt = (person) => {
+  const ensureDebt = person => {
     const id = person._id.toString();
     if (!debts[id]) {
       debts[id] = {
@@ -157,31 +159,69 @@ async function calculateUserDebts(groupId, userId) {
     return debts[id];
   };
 
+  const addDebt = (person, amount) => {
+    const debt = ensureDebt(person);
+    debt.amount = +(debt.amount + amount).toFixed(2);
+  };
+
+  settlements.forEach(settlement => {
+    const payerId = settlement.paidBy._id.toString();
+    if (payerId === currentUserId && settlement.relatedExpense?._id) {
+      const expenseId = settlement.relatedExpense._id.toString();
+      linkedPayments[expenseId] = +((linkedPayments[expenseId] || 0) + settlement.amount).toFixed(2);
+    }
+  });
+
   expenses.forEach(expense => {
     const paidById = expense.paidBy._id.toString();
-    if (paidById === currentUserId) return;
+
+    if (paidById === currentUserId) {
+      expense.splits.forEach(split => {
+        const splitUserId = split.user?._id?.toString() || split.user?.toString();
+        if (splitUserId && splitUserId !== currentUserId) {
+          addDebt(split.user, -split.amount);
+        }
+      });
+      return;
+    }
 
     const userSplit = expense.splits.find(split => {
       const splitUserId = split.user?._id?.toString() || split.user?.toString();
       return splitUserId === currentUserId;
     });
+    if (userSplit) {
+      addDebt(expense.paidBy, userSplit.amount);
 
-    if (!userSplit) return;
-    const debt = ensureDebt(expense.paidBy);
-    debt.amount = +(debt.amount + userSplit.amount).toFixed(2);
+      const debt = ensureDebt(expense.paidBy);
+      const expenseId = expense._id.toString();
+      const remainingAmount = +(userSplit.amount - (linkedPayments[expenseId] || 0)).toFixed(2);
+      if (remainingAmount > 0.009) {
+        debt.expenses = debt.expenses || [];
+        debt.expenses.push({
+          id: expenseId,
+          description: expense.description,
+          amount: expense.amount,
+          userShare: userSplit.amount,
+          remainingAmount
+        });
+      }
+    }
   });
 
   settlements.forEach(settlement => {
     const payerId = settlement.paidBy._id.toString();
     const payeeId = settlement.paidTo._id.toString();
 
-    if (payerId === currentUserId && debts[payeeId]) {
-      debts[payeeId].amount = +(debts[payeeId].amount - settlement.amount).toFixed(2);
-    }
+    if (payerId === currentUserId) addDebt(settlement.paidTo, -settlement.amount);
+    if (payeeId === currentUserId) addDebt(settlement.paidBy, settlement.amount);
   });
 
   return Object.values(debts)
     .filter(debt => debt.amount > 0.009)
+    .map(debt => ({
+      ...debt,
+      expenses: (debt.expenses || []).sort((a, b) => b.remainingAmount - a.remainingAmount)
+    }))
     .sort((a, b) => b.amount - a.amount);
 }
 
@@ -190,6 +230,7 @@ async function calculateSettlementSummary(groupId, userId) {
   const settlements = await Settlement.find({ group: groupId })
     .populate('paidBy', 'name email')
     .populate('paidTo', 'name email')
+    .populate('relatedExpense', 'description amount')
     .sort({ date: -1 });
 
   return {

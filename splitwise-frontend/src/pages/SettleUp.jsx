@@ -26,6 +26,7 @@ export default function SettleUp() {
   const [paidBy, setPaidBy] = useState(null);
   const [paidTo, setPaidTo] = useState(null);
   const [amount, setAmount] = useState('');
+  const [selectedExpenseId, setSelectedExpenseId] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -53,6 +54,7 @@ export default function SettleUp() {
     setPaidBy(null);
     setPaidTo(null);
     setAmount('');
+    setSelectedExpenseId('');
     setStep('overview');
   };
 
@@ -64,6 +66,7 @@ export default function SettleUp() {
     });
     setPaidTo(debt);
     setAmount(debt.amount.toFixed(2));
+    setSelectedExpenseId('');
     setStep('amount');
   };
 
@@ -85,6 +88,7 @@ export default function SettleUp() {
         paidBy: paidBy.id,
         paidTo: paidTo.id,
         amount: paymentAmount,
+        relatedExpense: selectedExpenseId || undefined,
         note: `${paidBy.name} paid ${paidTo.name}`
       });
       toast.success('Payment recorded!');
@@ -118,6 +122,7 @@ export default function SettleUp() {
       Math.max(member.amount || 0, 0)
     );
     setAmount(suggestedAmount > 0 ? suggestedAmount.toFixed(2) : '');
+    setSelectedExpenseId('');
     setStep('amount');
   };
 
@@ -234,6 +239,30 @@ export default function SettleUp() {
       {step === 'amount' && (
         <div className="max-w-lg mx-auto px-4 sm:px-6 py-6 sm:py-8">
           <PaymentPreview paidBy={paidBy} paidTo={paidTo} getColor={getColor} getInitial={getInitial} />
+          {paidTo?.expenses?.length > 0 && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Related expense
+              </label>
+              <select
+                value={selectedExpenseId}
+                onChange={e => {
+                  const nextExpenseId = e.target.value;
+                  const nextExpense = paidTo.expenses.find(expense => expense.id === nextExpenseId);
+                  setSelectedExpenseId(nextExpenseId);
+                  if (nextExpense) setAmount(nextExpense.remainingAmount.toFixed(2));
+                }}
+                className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
+              >
+                <option value="">Overall balance</option>
+                {paidTo.expenses.map(expense => (
+                  <option key={expense.id} value={expense.id}>
+                    {expense.description} - ₹{expense.remainingAmount.toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center justify-center gap-3 mb-8">
             <div className="w-12 h-12 border border-gray-600 rounded-xl flex items-center justify-center text-xl">₹</div>
             <input
@@ -263,6 +292,11 @@ export default function SettleUp() {
             {paidBy?.name} paid <span className="font-bold">{paidTo?.name}</span>
           </p>
           <p className="text-center text-gray-400 text-sm mb-6 break-all">{paidTo?.email}</p>
+          {selectedExpenseId && (
+            <p className="text-center text-emerald-300 text-sm mb-6 break-words">
+              For {paidTo?.expenses?.find(expense => expense.id === selectedExpenseId)?.description}
+            </p>
+          )}
           <div className="text-center mb-8">
             <span className="text-4xl sm:text-5xl font-bold">₹{parseFloat(amount || 0).toFixed(2)}</span>
           </div>
