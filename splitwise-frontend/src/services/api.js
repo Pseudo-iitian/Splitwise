@@ -52,4 +52,14 @@ export const deleteWishlistItem     = (id)       => api.delete(`/wishlist/${id}`
 export const voteWishlistItem       = (id)       => api.patch(`/wishlist/${id}/vote`);
 export const markBoughtWishlistItem = (id)       => api.patch(`/wishlist/${id}/bought`);
 
+// Chat Messages
+export const getChatMessages = (groupId) => 
+  api.get(`/groups/${groupId}/chat`);
+
+export const sendChatMessage = (groupId, data) => 
+  api.post(`/groups/${groupId}/chat`, data);
+
+export const deleteChatMessage = (groupId, messageId) => 
+  api.delete(`/groups/${groupId}/chat/${messageId}`);
+
 export default api;

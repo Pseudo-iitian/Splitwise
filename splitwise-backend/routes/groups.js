@@ -4,6 +4,8 @@ const Group    = require('../models/Group');
 const Activity = require('../models/Activity');
 const auth     = require('../middleware/auth');
 const crypto = require('crypto');
+const chatRouter = require('./chat');
+router.use('/:groupId/chat', chatRouter);
 require('dotenv').config();
 const {
   calculateBalances,
