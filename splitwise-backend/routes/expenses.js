@@ -4,17 +4,44 @@ const Expense  = require('../models/Expense');
 const Settlement = require('../models/Settlement');
 const auth     = require('../middleware/auth');
 const { splitEqually, splitByPercentage, splitByExact } = require('../utils/splitHelpers');
+const { logActivity } = require('../utils/activityLogger');
 
 async function attachSplitSettlementStatus(expenses) {
   const expenseIds = expenses.map(expense => expense._id);
-  const settlements = await Settlement.find({ relatedExpense: { $in: expenseIds } });
+  const settlements = await Settlement.find({
+    $or: [
+      { relatedExpense: { $in: expenseIds } },
+      { relatedExpenses: { $in: expenseIds } }
+    ]
+  });
   const paidAmounts = {};
 
   settlements.forEach(settlement => {
-    const expenseId = settlement.relatedExpense.toString();
     const payerId = settlement.paidBy.toString();
-    const key = `${expenseId}:${payerId}`;
-    paidAmounts[key] = +((paidAmounts[key] || 0) + settlement.amount).toFixed(2);
+
+    if (settlement.relatedExpenses && settlement.relatedExpenses.length > 0) {
+      let remainingAmount = settlement.amount;
+      settlement.relatedExpenses.forEach(expIdObj => {
+        const expId = expIdObj.toString();
+        const expense = expenses.find(e => e._id.toString() === expId);
+        if (expense) {
+          const split = expense.splits.find(s => {
+            const userId = s.user?._id?.toString() || s.user?.toString();
+            return userId === payerId;
+          });
+          if (split && remainingAmount > 0) {
+            const amountToAllocate = Math.min(split.amount, remainingAmount);
+            const key = `${expId}:${payerId}`;
+            paidAmounts[key] = +((paidAmounts[key] || 0) + amountToAllocate).toFixed(2);
+            remainingAmount -= amountToAllocate;
+          }
+        }
+      });
+    } else if (settlement.relatedExpense) {
+      const expenseId = settlement.relatedExpense.toString();
+      const key = `${expenseId}:${payerId}`;
+      paidAmounts[key] = +((paidAmounts[key] || 0) + settlement.amount).toFixed(2);
+    }
   });
 
   return expenses.map(expense => {
@@ -56,6 +83,16 @@ router.post('/', auth, async (req, res) => {
     });
 
     await expense.save();
+    
+    await logActivity({
+      groupId,
+      userId: req.user.id,
+      action: 'added',
+      type: 'expense',
+      description: `added "${description}"`,
+      amount
+    });
+    
     res.status(201).json(expense);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -99,6 +136,15 @@ router.put('/:expenseId', auth, async (req, res) => {
 
     if (!expense) return res.status(404).json({ msg: 'Expense not found' });
 
+    await logActivity({
+      groupId: expense.group,
+      userId: req.user.id,
+      action: 'updated',
+      type: 'expense',
+      description: `updated "${description}"`,
+      amount
+    });
+
     res.json(expense);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -108,7 +154,20 @@ router.put('/:expenseId', auth, async (req, res) => {
 // DELETE /api/expenses/:expenseId — Delete expense
 router.delete('/:expenseId', auth, async (req, res) => {
   try {
+    const expense = await Expense.findById(req.params.expenseId);
+    if (!expense) return res.status(404).json({ msg: 'Expense not found' });
+
     await Expense.findByIdAndDelete(req.params.expenseId);
+    
+    await logActivity({
+      groupId: expense.group,
+      userId: req.user.id,
+      action: 'deleted',
+      type: 'expense',
+      description: `deleted "${expense.description}"`,
+      amount: expense.amount
+    });
+
     res.json({ msg: 'Expense deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });

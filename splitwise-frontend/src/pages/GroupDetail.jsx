@@ -8,6 +8,7 @@ import {
   deleteExpense,
   updateSettlement,
   deleteSettlement,
+  getGroupHistory,
 } from "../services/api";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -21,6 +22,9 @@ import {
   FiDollarSign,
   FiCheckCircle,
   FiXCircle,
+  FiActivity,
+  FiFileText,
+  FiCreditCard,
 } from "react-icons/fi";
 
 export default function GroupDetail() {
@@ -34,6 +38,7 @@ export default function GroupDetail() {
     suggestions: [],
     settlements: [],
   });
+  const [history, setHistory] = useState([]);
   const [activeTab, setActiveTab] = useState("expenses");
   const [loading, setLoading] = useState(true);
   const [inviteLink, setInviteLink] = useState("");
@@ -41,7 +46,7 @@ export default function GroupDetail() {
   const [deleteModal, setDeleteModal] = useState(null);
   const [settlementModal, setSettlementModal] = useState(null);
   const [settlementAmount, setSettlementAmount] = useState("");
-  const [settlementExpenseId, setSettlementExpenseId] = useState("");
+  const [settlementExpenseIds, setSettlementExpenseIds] = useState([]);
   const [savingSettlement, setSavingSettlement] = useState(false);
 
   useEffect(() => {
@@ -50,13 +55,15 @@ export default function GroupDetail() {
 
   const fetchAll = async () => {
     try {
-      const [expRes, summaryRes] = await Promise.all([
+      const [expRes, summaryRes, histRes] = await Promise.all([
         getExpenses(groupId),
         getSettlementSummary(groupId),
+        getGroupHistory(groupId),
       ]);
       setExpenses(expRes.data);
       setBalances(summaryRes.data.balances || {});
       setSettlementSummary(summaryRes.data || { suggestions: [] });
+      setHistory(histRes.data || []);
     } catch {
       toast.error("Failed to load data");
     } finally {
@@ -94,7 +101,13 @@ export default function GroupDetail() {
   const openSettlementModal = (settlement) => {
     setSettlementModal(settlement);
     setSettlementAmount(settlement.amount?.toString() || "");
-    setSettlementExpenseId(settlement.relatedExpense?._id || settlement.relatedExpense || "");
+    if (settlement.relatedExpenses && settlement.relatedExpenses.length > 0) {
+      setSettlementExpenseIds(settlement.relatedExpenses.map(e => e._id || e));
+    } else if (settlement.relatedExpense) {
+      setSettlementExpenseIds([settlement.relatedExpense._id || settlement.relatedExpense]);
+    } else {
+      setSettlementExpenseIds([]);
+    }
   };
 
   const handleUpdateSettlement = async () => {
@@ -109,12 +122,12 @@ export default function GroupDetail() {
       await updateSettlement(settlementModal._id, {
         amount,
         note: settlementModal.note,
-        relatedExpense: settlementExpenseId || null,
+        relatedExpenses: settlementExpenseIds.length > 0 ? settlementExpenseIds : null,
       });
       toast.success("Payment updated!");
       setSettlementModal(null);
       setSettlementAmount("");
-      setSettlementExpenseId("");
+      setSettlementExpenseIds([]);
       fetchAll();
     } catch (err) {
       toast.error(err.response?.data?.msg || "Failed to update payment");
@@ -132,7 +145,7 @@ export default function GroupDetail() {
       toast.success("Payment deleted!");
       setSettlementModal(null);
       setSettlementAmount("");
-      setSettlementExpenseId("");
+      setSettlementExpenseIds([]);
       fetchAll();
     } catch (err) {
       toast.error(err.response?.data?.msg || "Failed to delete payment");
@@ -158,12 +171,14 @@ export default function GroupDetail() {
       date: getItemDate(expense),
       data: expense,
     })),
-    ...(settlementSummary.settlements || []).map((settlement) => ({
-      type: "settlement",
-      id: `settlement-${settlement._id}`,
-      date: getItemDate(settlement),
-      data: settlement,
-    })),
+    ...(settlementSummary.settlements || [])
+      .filter((settlement) => !settlement.isExpenseUpdate)
+      .map((settlement) => ({
+        type: "settlement",
+        id: `settlement-${settlement._id}`,
+        date: getItemDate(settlement),
+        data: settlement,
+      })),
   ].sort((a, b) => b.date - a.date);
 
   const userDebts = settlementSummary.userDebts || [];
@@ -243,7 +258,7 @@ export default function GroupDetail() {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-800 px-4 sm:px-6 overflow-x-auto">
-        {["expenses", "balances"].map((tab) => (
+        {["expenses", "balances", "history"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -335,11 +350,15 @@ export default function GroupDetail() {
                             <p className="text-xs text-gray-500">
                               {item.date.toLocaleDateString("en-IN")}
                             </p>
-                            {settlement.relatedExpense && (
-                              <p className="text-xs text-emerald-300 mt-1 truncate">
+                            {settlement.relatedExpenses && settlement.relatedExpenses.length > 0 ? (
+                              <p className="text-xs text-emerald-300 mt-1 break-words">
+                                For {settlement.relatedExpenses.map(e => e.description).join(', ')}
+                              </p>
+                            ) : settlement.relatedExpense ? (
+                              <p className="text-xs text-emerald-300 mt-1 break-words">
                                 For {settlement.relatedExpense.description}
                               </p>
-                            )}
+                            ) : null}
                           </div>
                         </div>
                         <span className="text-emerald-400 font-bold text-base sm:text-lg whitespace-nowrap shrink-0">
@@ -414,7 +433,7 @@ export default function GroupDetail() {
               })
             )}
           </div>
-        ) : (
+        ) : activeTab === "balances" ? (
           <div className="space-y-3">
             {Object.keys(balances).length === 0 ? (
               <div className="text-center py-20">
@@ -473,6 +492,64 @@ export default function GroupDetail() {
                   ))}
                 </div>
               </>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-800 before:to-transparent">
+            {history.length === 0 ? (
+              <div className="text-center py-20 relative z-10">
+                <div className="text-5xl mb-4">📝</div>
+                <p className="text-gray-400">No activity yet</p>
+              </div>
+            ) : (
+              history.map((item, index) => {
+                let Icon = FiActivity;
+                let bgColor = "bg-gray-800";
+                let iconColor = "text-gray-400";
+
+                if (item.action === "added" || item.action === "created") {
+                  Icon = FiPlus;
+                  bgColor = "bg-emerald-500/10";
+                  iconColor = "text-emerald-400";
+                } else if (item.action === "updated") {
+                  Icon = FiEdit2;
+                  bgColor = "bg-blue-500/10";
+                  iconColor = "text-blue-400";
+                } else if (item.action === "deleted") {
+                  Icon = FiTrash2;
+                  bgColor = "bg-red-500/10";
+                  iconColor = "text-red-400";
+                } else if (item.action === "paid" || item.action === "marked_paid") {
+                  Icon = FiCreditCard;
+                  bgColor = "bg-emerald-500/10";
+                  iconColor = "text-emerald-400";
+                }
+
+                return (
+                  <div key={item._id} className="relative z-10 flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-gray-950 bg-gray-900 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 mx-auto">
+                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bgColor}`}>
+                          <Icon size={14} className={iconColor} />
+                       </div>
+                    </div>
+                    
+                    <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 transition">
+                       <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-sm truncate">{item.user?.name || "Someone"}</span>
+                          <span className="text-xs text-gray-500 truncate">{new Date(item.date).toLocaleString()}</span>
+                       </div>
+                       <p className="text-sm text-gray-300 break-words">
+                          {item.description}
+                       </p>
+                       {item.amount > 0 && (
+                          <div className="mt-2 text-emerald-400 font-semibold text-sm">
+                            ₹{item.amount.toFixed(2)}
+                          </div>
+                       )}
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         )}
@@ -550,20 +627,33 @@ export default function GroupDetail() {
 
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Related expense
+                Related expenses
               </label>
-              <select
-                value={settlementExpenseId}
-                onChange={(e) => setSettlementExpenseId(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
-              >
-                <option value="">Overall balance</option>
-                {getExpenseOptionsForSettlement(settlementModal).map((expense) => (
-                  <option key={expense._id} value={expense._id}>
-                    {expense.description} - ₹{Number(expense.amount || 0).toFixed(2)}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {getExpenseOptionsForSettlement(settlementModal).map((expense) => {
+                  const isSelected = settlementExpenseIds.includes(expense._id);
+                  return (
+                    <label key={expense._id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-700 bg-gray-800 hover:bg-gray-700'}`}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSettlementExpenseIds([...settlementExpenseIds, expense._id]);
+                          } else {
+                            setSettlementExpenseIds(settlementExpenseIds.filter(id => id !== expense._id));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-700"
+                      />
+                      <span className="text-sm font-medium">{expense.description} - ₹{Number(expense.amount || 0).toFixed(2)}</span>
+                    </label>
+                  );
+                })}
+                {getExpenseOptionsForSettlement(settlementModal).length === 0 && (
+                   <p className="text-sm text-gray-400">No related expenses found.</p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -585,7 +675,7 @@ export default function GroupDetail() {
                 onClick={() => {
                   setSettlementModal(null);
                   setSettlementAmount("");
-                  setSettlementExpenseId("");
+                  setSettlementExpenseIds([]);
                 }}
                 disabled={savingSettlement}
                 className="w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-white py-3 rounded-xl transition"

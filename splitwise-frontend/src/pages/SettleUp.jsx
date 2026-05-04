@@ -26,7 +26,7 @@ export default function SettleUp() {
   const [paidBy, setPaidBy] = useState(null);
   const [paidTo, setPaidTo] = useState(null);
   const [amount, setAmount] = useState('');
-  const [selectedExpenseId, setSelectedExpenseId] = useState('');
+  const [selectedExpenseIds, setSelectedExpenseIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
@@ -54,7 +54,7 @@ export default function SettleUp() {
     setPaidBy(null);
     setPaidTo(null);
     setAmount('');
-    setSelectedExpenseId('');
+    setSelectedExpenseIds([]);
     setStep('overview');
   };
 
@@ -66,7 +66,7 @@ export default function SettleUp() {
     });
     setPaidTo(debt);
     setAmount(debt.amount.toFixed(2));
-    setSelectedExpenseId('');
+    setSelectedExpenseIds([]);
     setStep('amount');
   };
 
@@ -88,7 +88,7 @@ export default function SettleUp() {
         paidBy: paidBy.id,
         paidTo: paidTo.id,
         amount: paymentAmount,
-        relatedExpense: selectedExpenseId || undefined,
+        relatedExpenses: selectedExpenseIds.length > 0 ? selectedExpenseIds : undefined,
         note: `${paidBy.name} paid ${paidTo.name}`
       });
       toast.success('Payment recorded!');
@@ -122,7 +122,7 @@ export default function SettleUp() {
       Math.max(member.amount || 0, 0)
     );
     setAmount(suggestedAmount > 0 ? suggestedAmount.toFixed(2) : '');
-    setSelectedExpenseId('');
+    setSelectedExpenseIds([]);
     setStep('amount');
   };
 
@@ -242,25 +242,43 @@ export default function SettleUp() {
           {paidTo?.expenses?.length > 0 && (
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Related expense
+                Related expenses
               </label>
-              <select
-                value={selectedExpenseId}
-                onChange={e => {
-                  const nextExpenseId = e.target.value;
-                  const nextExpense = paidTo.expenses.find(expense => expense.id === nextExpenseId);
-                  setSelectedExpenseId(nextExpenseId);
-                  if (nextExpense) setAmount(nextExpense.remainingAmount.toFixed(2));
-                }}
-                className="w-full bg-gray-900 border border-gray-800 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
-              >
-                <option value="">Overall balance</option>
-                {paidTo.expenses.map(expense => (
-                  <option key={expense.id} value={expense.id}>
-                    {expense.description} - ₹{expense.remainingAmount.toFixed(2)}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {paidTo.expenses.map(expense => {
+                  const isSelected = selectedExpenseIds.includes(expense.id);
+                  return (
+                    <label key={expense.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-700 bg-gray-900 hover:bg-gray-800'}`}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const newIds = [...selectedExpenseIds, expense.id];
+                            setSelectedExpenseIds(newIds);
+                            // Auto update amount based on selected expenses
+                            const newAmount = paidTo.expenses
+                                .filter(exp => newIds.includes(exp.id))
+                                .reduce((sum, exp) => sum + exp.remainingAmount, 0);
+                            if (newAmount > 0) setAmount(newAmount.toFixed(2));
+                          } else {
+                            const newIds = selectedExpenseIds.filter(id => id !== expense.id);
+                            setSelectedExpenseIds(newIds);
+                            if (newIds.length > 0) {
+                              const newAmount = paidTo.expenses
+                                  .filter(exp => newIds.includes(exp.id))
+                                  .reduce((sum, exp) => sum + exp.remainingAmount, 0);
+                              setAmount(newAmount.toFixed(2));
+                            }
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-700"
+                      />
+                      <span className="text-sm font-medium">{expense.description} - ₹{expense.remainingAmount.toFixed(2)}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
           )}
           <div className="flex items-center justify-center gap-3 mb-8">
@@ -292,9 +310,9 @@ export default function SettleUp() {
             {paidBy?.name} paid <span className="font-bold">{paidTo?.name}</span>
           </p>
           <p className="text-center text-gray-400 text-sm mb-6 break-all">{paidTo?.email}</p>
-          {selectedExpenseId && (
+          {selectedExpenseIds.length > 0 && (
             <p className="text-center text-emerald-300 text-sm mb-6 break-words">
-              For {paidTo?.expenses?.find(expense => expense.id === selectedExpenseId)?.description}
+              For {paidTo?.expenses?.filter(expense => selectedExpenseIds.includes(expense.id)).map(e => e.description).join(', ')}
             </p>
           )}
           <div className="text-center mb-8">

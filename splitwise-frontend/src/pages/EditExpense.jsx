@@ -150,7 +150,8 @@ export default function EditExpense() {
                 paidBy: memberId,
                 paidTo: form.paidBy,
                 amount: split.amount,
-                relatedExpense: expenseId
+                relatedExpenses: [expenseId],
+                isExpenseUpdate: true
               })
             );
           }

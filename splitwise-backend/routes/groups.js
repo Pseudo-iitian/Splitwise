@@ -1,6 +1,7 @@
 const express  = require('express');
 const router   = express.Router();
 const Group    = require('../models/Group');
+const Activity = require('../models/Activity');
 const auth     = require('../middleware/auth');
 const crypto = require('crypto');
 require('dotenv').config();
@@ -128,5 +129,17 @@ router.get('/:groupId/settlement-summary', auth, async (req, res) => {
   }
 });
 
+// GET /api/groups/:groupId/history
+router.get('/:groupId/history', auth, async (req, res) => {
+  try {
+    const activities = await Activity.find({ group: req.params.groupId })
+      .populate('user', 'name email')
+      .sort({ date: -1 })
+      .limit(100); // Limit to last 100 activities for performance
+    res.json(activities);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

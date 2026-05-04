@@ -140,7 +140,8 @@ async function calculateUserDebts(groupId, userId) {
   const settlements = await Settlement.find({ group: groupId })
     .populate('paidBy', 'name email')
     .populate('paidTo', 'name email')
-    .populate('relatedExpense', 'description amount');
+    .populate('relatedExpense', 'description amount')
+    .populate('relatedExpenses', 'description amount');
 
   const debts = {};
   const linkedPayments = {};
@@ -166,9 +167,33 @@ async function calculateUserDebts(groupId, userId) {
 
   settlements.forEach(settlement => {
     const payerId = settlement.paidBy._id.toString();
-    if (payerId === currentUserId && settlement.relatedExpense?._id) {
-      const expenseId = settlement.relatedExpense._id.toString();
-      linkedPayments[expenseId] = +((linkedPayments[expenseId] || 0) + settlement.amount).toFixed(2);
+    if (payerId === currentUserId) {
+      if (settlement.relatedExpenses && settlement.relatedExpenses.length > 0) {
+        // Allocate equally or full amount? We should allocate properly,
+        // but for now, we'll just add the full settlement amount to each linked expense
+        // so that they are fully considered paid up (which might over-estimate payment but avoids debt)
+        // A better approach is to sequentially allocate, same as attachSplitSettlementStatus.
+        let remainingAmount = settlement.amount;
+        settlement.relatedExpenses.forEach(exp => {
+          const expenseId = exp._id.toString();
+          // Find split amount
+          const expenseObj = expenses.find(e => e._id.toString() === expenseId);
+          if (expenseObj) {
+            const split = expenseObj.splits.find(s => {
+              const splitUserId = s.user?._id?.toString() || s.user?.toString();
+              return splitUserId === currentUserId;
+            });
+            if (split && remainingAmount > 0) {
+              const amountToAllocate = Math.min(split.amount, remainingAmount);
+              linkedPayments[expenseId] = +((linkedPayments[expenseId] || 0) + amountToAllocate).toFixed(2);
+              remainingAmount -= amountToAllocate;
+            }
+          }
+        });
+      } else if (settlement.relatedExpense?._id) {
+        const expenseId = settlement.relatedExpense._id.toString();
+        linkedPayments[expenseId] = +((linkedPayments[expenseId] || 0) + settlement.amount).toFixed(2);
+      }
     }
   });
 
@@ -231,6 +256,7 @@ async function calculateSettlementSummary(groupId, userId) {
     .populate('paidBy', 'name email')
     .populate('paidTo', 'name email')
     .populate('relatedExpense', 'description amount')
+    .populate('relatedExpenses', 'description amount')
     .sort({ date: -1 });
 
   return {
