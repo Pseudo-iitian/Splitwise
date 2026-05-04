@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getGroups, getExpenses, updateExpense } from '../services/api';
+import { getGroups, getExpenses, updateExpense, settleUp, getSettlements, deleteSettlement } from '../services/api';
 import { useSelector } from 'react-redux';
 import toast, { Toaster } from 'react-hot-toast';
 import { FiArrowLeft, FiDollarSign } from 'react-icons/fi';
@@ -13,6 +13,9 @@ export default function EditExpense() {
   const [group,   setGroup]   = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [originalExpense, setOriginalExpense] = useState(null);
+  const [markedAsPaid, setMarkedAsPaid] = useState(new Set());
+  const [markedAsUnpaid, setMarkedAsUnpaid] = useState(new Set());
 
   const [form, setForm] = useState({
     description: '',
@@ -44,6 +47,8 @@ export default function EditExpense() {
         navigate(`/group/${groupId}`);
         return;
       }
+
+      setOriginalExpense(foundExpense);
 
       // Form mein expense data bharo
       // Jo members pehle selected the unki IDs
@@ -84,6 +89,28 @@ export default function EditExpense() {
     return m?.name || 'Someone';
   };
 
+  const handleToggleMarkPaid = (e, memberId, isOriginallySettled) => {
+    e.stopPropagation(); // prevent toggleMember
+    
+    if (isOriginallySettled) {
+      // Toggle unpaid
+      setMarkedAsUnpaid(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(memberId)) newSet.delete(memberId);
+        else newSet.add(memberId);
+        return newSet;
+      });
+    } else {
+      // Toggle paid
+      setMarkedAsPaid(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(memberId)) newSet.delete(memberId);
+        else newSet.add(memberId);
+        return newSet;
+      });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.description || !form.amount) {
@@ -100,7 +127,7 @@ export default function EditExpense() {
     }
     setLoading(true);
     try {
-      await updateExpense(expenseId, {
+      const res = await updateExpense(expenseId, {
         description: form.description,
         amount:      parseFloat(form.amount),
         paidBy:      form.paidBy,
@@ -108,6 +135,48 @@ export default function EditExpense() {
         members:     form.members,
         splits:      form.splits,
       });
+      
+      const updatedExpense = res.data;
+
+      // Handle members marked as paid
+      if (markedAsPaid.size > 0) {
+        const promises = [];
+        for (const memberId of markedAsPaid) {
+          const split = updatedExpense.splits.find(s => (s.user?._id || s.user) === memberId);
+          if (split && split.amount > 0 && form.paidBy !== memberId) {
+            promises.push(
+              settleUp({
+                groupId,
+                paidBy: memberId,
+                paidTo: form.paidBy,
+                amount: split.amount,
+                relatedExpense: expenseId
+              })
+            );
+          }
+        }
+        if (promises.length > 0) {
+          await Promise.all(promises);
+        }
+      }
+      // Handle members marked as UNPAID
+      if (markedAsUnpaid.size > 0) {
+        const { data: allSettlements } = await getSettlements(groupId);
+        const promises = [];
+        for (const memberId of markedAsUnpaid) {
+          const settlementsToDelete = allSettlements.filter(s => 
+            (s.relatedExpense?._id || s.relatedExpense) === expenseId && 
+            (s.paidBy?._id || s.paidBy) === memberId
+          );
+          for (const s of settlementsToDelete) {
+             promises.push(deleteSettlement(s._id));
+          }
+        }
+        if (promises.length > 0) {
+          await Promise.all(promises);
+        }
+      }
+
       toast.success('Expense updated!');
       navigate(`/group/${groupId}`);
     } catch (err) {
@@ -260,6 +329,9 @@ export default function EditExpense() {
                   const email    = member.email || '';
                   const selected = form.members.includes(memberId);
                   const isNew    = !selected; // baad mein join hua
+                  
+                  const originalSplit = originalExpense?.splits?.find(s => (s.user?._id || s.user) === memberId);
+                  const isPayer = form.paidBy === memberId;
 
                   return (
                     <div
@@ -291,10 +363,50 @@ export default function EditExpense() {
                       </div>
 
                       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                        {selected && form.splitType === 'equal' && form.amount && (
-                          <span className="text-emerald-400 text-sm font-medium">
-                            ₹{perPersonAmount()}
-                          </span>
+                        {selected && (
+                          <div className="flex items-center gap-3">
+                            <span className="text-emerald-400 text-sm font-medium">
+                              ₹{originalSplit ? originalSplit.amount : perPersonAmount()}
+                            </span>
+                            
+                            {!isPayer && (
+                              originalSplit?.settled ? (
+                                markedAsUnpaid.has(memberId) ? (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleToggleMarkPaid(e, memberId, true)}
+                                    className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-lg text-xs font-medium transition"
+                                  >
+                                    Mark as Paid
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleToggleMarkPaid(e, memberId, true)}
+                                    className="bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded-lg text-xs font-medium transition"
+                                  >
+                                    Paid
+                                  </button>
+                                )
+                              ) : markedAsPaid.has(memberId) ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleToggleMarkPaid(e, memberId, false)}
+                                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-2 py-1 rounded-lg text-xs font-medium transition"
+                                >
+                                  Marked as Paid
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleToggleMarkPaid(e, memberId, false)}
+                                  className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded-lg text-xs font-medium transition"
+                                >
+                                  Mark as Paid
+                                </button>
+                              )
+                            )}
+                          </div>
                         )}
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition ${
                           selected ? 'border-emerald-500 bg-emerald-500' : 'border-gray-600'
