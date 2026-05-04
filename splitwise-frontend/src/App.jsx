@@ -9,6 +9,8 @@ import AddExpense  from './pages/AddExpense';
 import JoinGroup from './pages/JoinGroup';
 import EditExpense from './pages/EditExpense';
 import SettleUp from './pages/SettleUp';
+import Wishlist from './pages/Wishlist';
+
 
 
 
@@ -24,6 +26,7 @@ export default function App() {
         <Route path="/login"    element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/join/:token" element={<JoinGroup />} />
+        <Route path="/wishlist" element={<Wishlist />} />
         <Route path="/" element={
           <PrivateRoute><Dashboard /></PrivateRoute>
         }/>

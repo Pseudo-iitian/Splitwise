@@ -2,6 +2,7 @@ require('dotenv').config();
 const express  = require('express');
 const mongoose = require('mongoose');
 const cors     = require('cors');
+const wishlistRoutes = require('./routes/wishlist');
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/auth',        require('./routes/auth'));
 app.use('/api/groups',      require('./routes/groups'));
 app.use('/api/expenses',    require('./routes/expenses'));
 app.use('/api/settlements', require('./routes/settlements'));
+app.use('/api/wishlist', wishlistRoutes);
 
 app.get('/', (req, res) => {
   res.json({ msg: 'Splitwise API running ✅' });

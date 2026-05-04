@@ -44,6 +44,12 @@ export const joinGroup       = (token)   => api.post(`/groups/join/${token}`);
 export const updateExpense = (expenseId, data) => api.put(`/expenses/${expenseId}`, data);
 export const deleteExpense = (expenseId)       => api.delete(`/expenses/${expenseId}`);
 
-
+// Wishlist
+export const getWishlist           = ()         => api.get('/wishlist');
+export const addWishlistItem       = (data)     => api.post('/wishlist', data);
+export const updateWishlistItem    = (id, data) => api.put(`/wishlist/${id}`, data);
+export const deleteWishlistItem    = (id)       => api.delete(`/wishlist/${id}`);
+export const voteWishlistItem      = (id)       => api.patch(`/wishlist/${id}/vote`);
+export const markBoughtWishlistItem= (id)       => api.patch(`/wishlist/${id}/bought`);
 
 export default api;

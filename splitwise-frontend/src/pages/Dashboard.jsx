@@ -1,47 +1,55 @@
-import React, { useEffect, useState } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { Link, useNavigate } from 'react-router-dom';
-import { getGroups, createGroup, deleteGroup } from '../services/api';
-import { logout } from '../store/authSlice';
-import toast, { Toaster } from 'react-hot-toast';
+import React, { useEffect, useState } from "react";
+import { useSelector, useDispatch } from "react-redux";
+import { Link, useNavigate } from "react-router-dom";
+import { getGroups, createGroup, deleteGroup } from "../services/api";
+import { logout } from "../store/authSlice";
+import toast, { Toaster } from "react-hot-toast";
 import {
-  FiPlus, FiLogOut, FiUsers, FiHome,
-  FiShoppingBag, FiMap, FiTrash2, FiMoreVertical
-} from 'react-icons/fi';
+  FiPlus,
+  FiLogOut,
+  FiUsers,
+  FiHome,
+  FiShoppingBag,
+  FiMap,
+  FiTrash2,
+  FiMoreVertical,
+} from "react-icons/fi";
 
 const categoryIcon = {
-  home:  <FiHome />,
-  trip:  <FiMap />,
-  food:  <FiShoppingBag />,
+  home: <FiHome />,
+  trip: <FiMap />,
+  food: <FiShoppingBag />,
   other: <FiUsers />,
 };
 
 const categoryColor = {
-  home:  'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  trip:  'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  food:  'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  other: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+  home: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  trip: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+  food: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+  other: "bg-gray-500/10 text-gray-400 border-gray-500/20",
 };
 
 export default function Dashboard() {
-  const { user }  = useSelector(state => state.auth);
-  const dispatch  = useDispatch();
-  const navigate  = useNavigate();
+  const { user } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
-  const [groups,      setGroups]      = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [showModal,   setShowModal]   = useState(false);
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
   const [deleteModal, setDeleteModal] = useState(null); // group to delete
-  const [menuOpen,    setMenuOpen]    = useState(null); // group id with open menu
-  const [form, setForm] = useState({ name: '', category: 'home', members: [] });
+  const [menuOpen, setMenuOpen] = useState(null); // group id with open menu
+  const [form, setForm] = useState({ name: "", category: "home", members: [] });
 
-  useEffect(() => { fetchGroups(); }, []);
+  useEffect(() => {
+    fetchGroups();
+  }, []);
 
   // Close menu when clicking outside
   useEffect(() => {
     const handler = () => setMenuOpen(null);
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
   }, []);
 
   const fetchGroups = async () => {
@@ -49,7 +57,7 @@ export default function Dashboard() {
       const res = await getGroups();
       setGroups(res.data);
     } catch {
-      toast.error('Failed to load groups');
+      toast.error("Failed to load groups");
     } finally {
       setLoading(false);
     }
@@ -59,12 +67,12 @@ export default function Dashboard() {
     e.preventDefault();
     try {
       await createGroup(form);
-      toast.success('Group created!');
+      toast.success("Group created!");
       setShowModal(false);
-      setForm({ name: '', category: 'home', members: [] });
+      setForm({ name: "", category: "home", members: [] });
       fetchGroups();
     } catch {
-      toast.error('Failed to create group');
+      toast.error("Failed to create group");
     }
   };
 
@@ -76,13 +84,13 @@ export default function Dashboard() {
       setDeleteModal(null);
       fetchGroups();
     } catch (err) {
-      toast.error(err.response?.data?.msg || 'Failed to delete group');
+      toast.error(err.response?.data?.msg || "Failed to delete group");
     }
   };
 
   const handleLogout = () => {
     dispatch(logout());
-    navigate('/login');
+    navigate("/login");
   };
 
   return (
@@ -98,7 +106,15 @@ export default function Dashboard() {
           <span className="font-bold text-lg truncate">Splitwise</span>
         </div>
         <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          <span className="text-gray-400 text-sm truncate max-w-[120px] sm:max-w-none">Hi, {user?.name}</span>
+          <span className="text-gray-400 text-sm truncate max-w-[120px] sm:max-w-none">
+            Hi, {user?.name}
+          </span>
+          <Link
+            to="/wishlist"
+            className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-emerald-400 transition text-sm shrink-0"
+          >
+            🛍️ <span className="hidden sm:inline">Wishlist</span>
+          </Link>
           <button
             onClick={handleLogout}
             className="flex items-center gap-1.5 sm:gap-2 text-gray-400 hover:text-red-400 transition text-sm shrink-0"
@@ -109,12 +125,13 @@ export default function Dashboard() {
       </nav>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold">Your Groups</h1>
-            <p className="text-gray-400 text-sm mt-1">{groups.length} groups total</p>
+            <p className="text-gray-400 text-sm mt-1">
+              {groups.length} groups total
+            </p>
           </div>
           <button
             onClick={() => setShowModal(true)}
@@ -137,7 +154,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {groups.map(group => (
+            {groups.map((group) => (
               <div
                 key={group._id}
                 className="bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 sm:p-6 transition relative min-w-0"
@@ -157,7 +174,7 @@ export default function Dashboard() {
                 {menuOpen === group._id && (
                   <div
                     className="absolute top-12 right-4 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-10 overflow-hidden"
-                    onClick={e => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <button
                       onClick={() => {
@@ -174,14 +191,20 @@ export default function Dashboard() {
                 {/* Card content — clickable to open group */}
                 <Link to={`/group/${group._id}`} className="block">
                   <div className="flex items-start justify-between gap-3 mb-4 pr-6">
-                    <div className={`p-2 rounded-xl border text-lg shrink-0 ${categoryColor[group.category]}`}>
+                    <div
+                      className={`p-2 rounded-xl border text-lg shrink-0 ${categoryColor[group.category]}`}
+                    >
                       {categoryIcon[group.category]}
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full border truncate max-w-[120px] ${categoryColor[group.category]}`}>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full border truncate max-w-[120px] ${categoryColor[group.category]}`}
+                    >
                       {group.category}
                     </span>
                   </div>
-                  <h3 className="font-semibold text-lg truncate">{group.name}</h3>
+                  <h3 className="font-semibold text-lg truncate">
+                    {group.name}
+                  </h3>
                   <p className="text-gray-400 text-sm mt-1 flex items-center gap-1">
                     <FiUsers size={12} /> {group.members.length} members
                   </p>
@@ -199,20 +222,26 @@ export default function Dashboard() {
             <h2 className="text-xl font-bold mb-6">Create New Group</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-300 mb-2">Group Name</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  Group Name
+                </label>
                 <input
                   required
                   value={form.name}
-                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
                   placeholder="Goa Trip, Flat Mates..."
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-300 mb-2">Category</label>
+                <label className="block text-sm text-gray-300 mb-2">
+                  Category
+                </label>
                 <select
                   value={form.category}
-                  onChange={e => setForm({ ...form, category: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, category: e.target.value })
+                  }
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
                 >
                   <option value="home">🏠 Home</option>
@@ -251,9 +280,11 @@ export default function Dashboard() {
               </div>
               <h2 className="text-xl font-bold">Delete Group?</h2>
               <p className="text-gray-400 text-sm mt-2">
-                Are you sure you want to delete{' '}
-                <span className="text-white font-medium">"{deleteModal.name}"</span>?
-                This cannot be undone.
+                Are you sure you want to delete{" "}
+                <span className="text-white font-medium">
+                  "{deleteModal.name}"
+                </span>
+                ? This cannot be undone.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
@@ -273,7 +304,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-
     </div>
   );
 }
