@@ -102,9 +102,13 @@ export default function GroupDetail() {
     setSettlementModal(settlement);
     setSettlementAmount(settlement.amount?.toString() || "");
     if (settlement.relatedExpenses && settlement.relatedExpenses.length > 0) {
-      setSettlementExpenseIds(settlement.relatedExpenses.map(e => e._id || e));
+      setSettlementExpenseIds(
+        settlement.relatedExpenses.map((e) => e._id || e),
+      );
     } else if (settlement.relatedExpense) {
-      setSettlementExpenseIds([settlement.relatedExpense._id || settlement.relatedExpense]);
+      setSettlementExpenseIds([
+        settlement.relatedExpense._id || settlement.relatedExpense,
+      ]);
     } else {
       setSettlementExpenseIds([]);
     }
@@ -122,7 +126,8 @@ export default function GroupDetail() {
       await updateSettlement(settlementModal._id, {
         amount,
         note: settlementModal.note,
-        relatedExpenses: settlementExpenseIds.length > 0 ? settlementExpenseIds : null,
+        relatedExpenses:
+          settlementExpenseIds.length > 0 ? settlementExpenseIds : null,
       });
       toast.success("Payment updated!");
       setSettlementModal(null);
@@ -199,11 +204,14 @@ export default function GroupDetail() {
   const getExpenseOptionsForSettlement = (settlement) => {
     if (!settlement) return [];
 
-    const payerId = settlement.paidBy?._id || settlement.paidBy?.id || settlement.paidBy;
-    const receiverId = settlement.paidTo?._id || settlement.paidTo?.id || settlement.paidTo;
+    const payerId =
+      settlement.paidBy?._id || settlement.paidBy?.id || settlement.paidBy;
+    const receiverId =
+      settlement.paidTo?._id || settlement.paidTo?.id || settlement.paidTo;
 
     return expenses.filter((expense) => {
-      const expensePaidById = expense.paidBy?._id || expense.paidBy?.id || expense.paidBy;
+      const expensePaidById =
+        expense.paidBy?._id || expense.paidBy?.id || expense.paidBy;
       const payerInSplit = expense.splits?.some((split) => {
         const splitUserId = split.user?._id || split.user?.id || split.user;
         return splitUserId === payerId;
@@ -341,7 +349,10 @@ export default function GroupDetail() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-                            <FiDollarSign className="text-emerald-400" size={20} />
+                            <FiDollarSign
+                              className="text-emerald-400"
+                              size={20}
+                            />
                           </div>
                           <div className="min-w-0">
                             <h3 className="font-semibold truncate">
@@ -350,9 +361,13 @@ export default function GroupDetail() {
                             <p className="text-xs text-gray-500">
                               {item.date.toLocaleDateString("en-IN")}
                             </p>
-                            {settlement.relatedExpenses && settlement.relatedExpenses.length > 0 ? (
+                            {settlement.relatedExpenses &&
+                            settlement.relatedExpenses.length > 0 ? (
                               <p className="text-xs text-emerald-300 mt-1 break-words">
-                                For {settlement.relatedExpenses.map(e => e.description).join(', ')}
+                                For{" "}
+                                {settlement.relatedExpenses
+                                  .map((e) => e.description)
+                                  .join(", ")}
                               </p>
                             ) : settlement.relatedExpense ? (
                               <p className="text-xs text-emerald-300 mt-1 break-words">
@@ -379,11 +394,14 @@ export default function GroupDetail() {
                     {/* Top row */}
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="min-w-0">
-                        <h3 className="font-semibold truncate">{exp.description}</h3>
+                        <h3 className="font-semibold truncate">
+                          {exp.description}
+                        </h3>
                         <p className="text-gray-400 text-sm mt-0.5 truncate">
-                          Paid by {exp.paidByMultiple && exp.paidByMultiple.length > 1 
-                            ? `${exp.paidBy?.name || 'Someone'} and ${exp.paidByMultiple.length - 1} other${exp.paidByMultiple.length > 2 ? 's' : ''}`
-                            : exp.paidBy?.name || 'Someone'}
+                          Paid by{" "}
+                          {exp.paidByMultiple && exp.paidByMultiple.length > 1
+                            ? `${exp.paidBy?.name || "Someone"} and ${exp.paidByMultiple.length - 1} other${exp.paidByMultiple.length > 2 ? "s" : ""}`
+                            : exp.paidBy?.name || "Someone"}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
@@ -413,20 +431,44 @@ export default function GroupDetail() {
 
                     {/* Splits */}
                     <div className="flex flex-wrap gap-2">
-                      {exp.splits?.map((split) => (
-                        <span
-                          key={split._id}
-                          className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${
-                            split.settled
-                              ? "bg-emerald-500/10 text-emerald-300"
-                              : "bg-red-500/10 text-red-300"
-                          }`}
-                        >
-                          {split.settled ? <FiCheckCircle size={12} /> : <FiXCircle size={12} />}
-                          <span>{split.user?.name}: ₹{Number(split.amount || 0).toFixed(2)}</span>
-                        </span>
-                      ))}
+                      {exp.splits?.map((split) => {
+                        const splitUserId = split.user?._id || split.user;
+
+                        // Check if this person is a payer (single or multiple)
+                        const isPayer =
+                          exp.paidByMultiple && exp.paidByMultiple.length > 0
+                            ? exp.paidByMultiple.some(
+                                (p) =>
+                                  (p.user?._id || p.user) === splitUserId &&
+                                  p.amount > 0,
+                              )
+                            : (exp.paidBy?._id || exp.paidBy) === splitUserId;
+
+                        const isGreen = split.settled || isPayer;
+
+                        return (
+                          <span
+                            key={split._id}
+                            className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${
+                              isGreen
+                                ? "bg-emerald-500/10 text-emerald-300"
+                                : "bg-red-500/10 text-red-300"
+                            }`}
+                          >
+                            {isGreen ? (
+                              <FiCheckCircle size={12} />
+                            ) : (
+                              <FiXCircle size={12} />
+                            )}
+                            <span>
+                              {split.user?.name}: ₹
+                              {Number(split.amount || 0).toFixed(2)}
+                            </span>
+                          </span>
+                        );
+                      })}
                     </div>
+
                     <p className="text-xs text-gray-600 mt-2">
                       {item.date.toLocaleDateString("en-IN")}
                     </p>
@@ -452,7 +494,8 @@ export default function GroupDetail() {
                         className="bg-gray-900 border border-gray-800 rounded-2xl p-4"
                       >
                         <p className="font-medium text-sm sm:text-base break-words">
-                          {item.paidBy.name} borrows ₹{item.amount.toFixed(2)} from {item.paidTo.name}
+                          {item.paidBy.name} borrows ₹{item.amount.toFixed(2)}{" "}
+                          from {item.paidTo.name}
                         </p>
                         <p className="text-xs text-gray-500 mt-1 break-all">
                           {item.paidBy.email} owes {item.paidTo.email}
@@ -477,17 +520,24 @@ export default function GroupDetail() {
                           <FiUsers className="text-gray-400" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{balance.name || userId.slice(-6)}</p>
-                          <p className="text-xs text-gray-500 truncate">{balance.email || "Group member"}</p>
+                          <p className="text-sm font-medium truncate">
+                            {balance.name || userId.slice(-6)}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {balance.email || "Group member"}
+                          </p>
                         </div>
                       </div>
                       {Math.abs(balance.amount) < 0.01 ? (
-                        <span className="text-gray-400 text-sm self-end sm:self-auto">is settled up</span>
+                        <span className="text-gray-400 text-sm self-end sm:self-auto">
+                          is settled up
+                        </span>
                       ) : (
                         <span
                           className={`font-bold text-lg self-end sm:self-auto ${balance.amount > 0 ? "text-emerald-400" : "text-red-400"}`}
                         >
-                          {balance.amount > 0 ? "+" : "-"}₹{Math.abs(balance.amount).toFixed(2)}
+                          {balance.amount > 0 ? "+" : "-"}₹
+                          {Math.abs(balance.amount).toFixed(2)}
                         </span>
                       )}
                     </div>
@@ -521,33 +571,45 @@ export default function GroupDetail() {
                   Icon = FiTrash2;
                   bgColor = "bg-red-500/10";
                   iconColor = "text-red-400";
-                } else if (item.action === "paid" || item.action === "marked_paid") {
+                } else if (
+                  item.action === "paid" ||
+                  item.action === "marked_paid"
+                ) {
                   Icon = FiCreditCard;
                   bgColor = "bg-emerald-500/10";
                   iconColor = "text-emerald-400";
                 }
 
                 return (
-                  <div key={item._id} className="relative z-10 flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
+                  <div
+                    key={item._id}
+                    className="relative z-10 flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group"
+                  >
                     <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-gray-950 bg-gray-900 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 mx-auto">
-                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bgColor}`}>
-                          <Icon size={14} className={iconColor} />
-                       </div>
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center ${bgColor}`}
+                      >
+                        <Icon size={14} className={iconColor} />
+                      </div>
                     </div>
-                    
+
                     <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 transition">
-                       <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-sm truncate">{item.user?.name || "Someone"}</span>
-                          <span className="text-xs text-gray-500 truncate">{new Date(item.date).toLocaleString()}</span>
-                       </div>
-                       <p className="text-sm text-gray-300 break-words">
-                          {item.description}
-                       </p>
-                       {item.amount > 0 && (
-                          <div className="mt-2 text-emerald-400 font-semibold text-sm">
-                            ₹{item.amount.toFixed(2)}
-                          </div>
-                       )}
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-sm truncate">
+                          {item.user?.name || "Someone"}
+                        </span>
+                        <span className="text-xs text-gray-500 truncate">
+                          {new Date(item.date).toLocaleString()}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-300 break-words">
+                        {item.description}
+                      </p>
+                      {item.amount > 0 && (
+                        <div className="mt-2 text-emerald-400 font-semibold text-sm">
+                          ₹{item.amount.toFixed(2)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -632,28 +694,48 @@ export default function GroupDetail() {
                 Related expenses
               </label>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                {getExpenseOptionsForSettlement(settlementModal).map((expense) => {
-                  const isSelected = settlementExpenseIds.includes(expense._id);
-                  return (
-                    <label key={expense._id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-700 bg-gray-800 hover:bg-gray-700'}`}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSettlementExpenseIds([...settlementExpenseIds, expense._id]);
-                          } else {
-                            setSettlementExpenseIds(settlementExpenseIds.filter(id => id !== expense._id));
-                          }
-                        }}
-                        className="w-4 h-4 rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-700"
-                      />
-                      <span className="text-sm font-medium">{expense.description} - ₹{Number(expense.amount || 0).toFixed(2)}</span>
-                    </label>
-                  );
-                })}
-                {getExpenseOptionsForSettlement(settlementModal).length === 0 && (
-                   <p className="text-sm text-gray-400">No related expenses found.</p>
+                {getExpenseOptionsForSettlement(settlementModal).map(
+                  (expense) => {
+                    const isSelected = settlementExpenseIds.includes(
+                      expense._id,
+                    );
+                    return (
+                      <label
+                        key={expense._id}
+                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${isSelected ? "border-emerald-500 bg-emerald-500/10" : "border-gray-700 bg-gray-800 hover:bg-gray-700"}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSettlementExpenseIds([
+                                ...settlementExpenseIds,
+                                expense._id,
+                              ]);
+                            } else {
+                              setSettlementExpenseIds(
+                                settlementExpenseIds.filter(
+                                  (id) => id !== expense._id,
+                                ),
+                              );
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-700"
+                        />
+                        <span className="text-sm font-medium">
+                          {expense.description} - ₹
+                          {Number(expense.amount || 0).toFixed(2)}
+                        </span>
+                      </label>
+                    );
+                  },
+                )}
+                {getExpenseOptionsForSettlement(settlementModal).length ===
+                  0 && (
+                  <p className="text-sm text-gray-400">
+                    No related expenses found.
+                  </p>
                 )}
               </div>
             </div>
