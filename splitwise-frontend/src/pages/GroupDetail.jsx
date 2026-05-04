@@ -381,7 +381,9 @@ export default function GroupDetail() {
                       <div className="min-w-0">
                         <h3 className="font-semibold truncate">{exp.description}</h3>
                         <p className="text-gray-400 text-sm mt-0.5 truncate">
-                          Paid by {exp.paidBy?.name}
+                          Paid by {exp.paidByMultiple && exp.paidByMultiple.length > 1 
+                            ? `${exp.paidBy?.name || 'Someone'} and ${exp.paidByMultiple.length - 1} other${exp.paidByMultiple.length > 2 ? 's' : ''}`
+                            : exp.paidBy?.name || 'Someone'}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 sm:gap-2 shrink-0">

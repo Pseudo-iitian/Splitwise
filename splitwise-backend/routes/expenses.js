@@ -67,7 +67,7 @@ async function attachSplitSettlementStatus(expenses) {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const { description, amount, groupId, paidBy, members, splitType, splits } = req.body; // ← paidBy add kiya
+    const { description, amount, groupId, paidBy, paidByMultiple, members, splitType, splits } = req.body;
     let computedSplits;
     if (splitType === 'equal')           computedSplits = splitEqually(amount, members);
     else if (splitType === 'percentage') computedSplits = splitByPercentage(amount, splits);
@@ -76,7 +76,8 @@ router.post('/', auth, async (req, res) => {
     const expense = new Expense({
       description,
       amount,
-      paidBy: paidBy || req.user.id,  // ← SIRF YEH LINE CHANGE HUI
+      paidBy: paidByMultiple && paidByMultiple.length > 0 ? paidByMultiple[0].user : (paidBy || req.user.id),
+      paidByMultiple: paidByMultiple || [],
       group:  groupId,
       splitType,
       splits: computedSplits
@@ -103,6 +104,7 @@ router.get('/group/:groupId', auth, async (req, res) => {
   try {
     const expenses = await Expense.find({ group: req.params.groupId })
       .populate('paidBy', 'name email')
+      .populate('paidByMultiple.user', 'name email')
       .populate('splits.user', 'name email')
       .sort({ date: -1 });
     res.json(await attachSplitSettlementStatus(expenses));
@@ -114,24 +116,34 @@ router.get('/group/:groupId', auth, async (req, res) => {
 // PUT /api/expenses/:expenseId — Edit expense
 router.put('/:expenseId', auth, async (req, res) => {
   try {
-    const { description, amount, paidBy, members, splitType, splits } = req.body;
+    const { description, amount, paidBy, paidByMultiple, members, splitType, splits } = req.body;
 
     let computedSplits;
     if (splitType === 'equal')           computedSplits = splitEqually(amount, members);
     else if (splitType === 'percentage') computedSplits = splitByPercentage(amount, splits);
     else if (splitType === 'exact')      computedSplits = splitByExact(splits);
 
+    const updateData = {
+      description,
+      amount,
+      splitType,
+      splits: computedSplits
+    };
+
+    if (paidByMultiple && paidByMultiple.length > 0) {
+      updateData.paidByMultiple = paidByMultiple;
+      updateData.paidBy = paidByMultiple[0].user;
+    } else if (paidBy) {
+      updateData.paidBy = paidBy;
+      updateData.paidByMultiple = [];
+    }
+
     const expense = await Expense.findByIdAndUpdate(
       req.params.expenseId,
-      {
-        description,
-        amount,
-        paidBy,
-        splitType,
-        splits: computedSplits
-      },
+      updateData,
       { new: true }
     ).populate('paidBy', 'name email')
+     .populate('paidByMultiple.user', 'name email')
      .populate('splits.user', 'name email');
 
     if (!expense) return res.status(404).json({ msg: 'Expense not found' });

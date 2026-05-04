@@ -2,7 +2,11 @@ const mongoose = require('mongoose');
 const expenseSchema = new mongoose.Schema({
   description: { type: String, required: true },
   amount:      { type: Number, required: true },
-  paidBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  paidBy:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Primary payer (or first payer)
+  paidByMultiple: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    amount: Number
+  }],
   group:       { type: mongoose.Schema.Types.ObjectId, ref: 'Group', required: true },
   splitType:   { type: String, enum: ['equal', 'percentage', 'exact'], default: 'equal' },
   splits: [{

@@ -16,9 +16,11 @@ export default function AddExpense() {
     amount:      '',
     splitType:   'equal',
     paidBy:      '',
+    paidByMultiple: [],
     members:     [],
     splits:      [],
   });
+  const [isMultiPayer, setIsMultiPayer] = useState(false);
 
   useEffect(() => { fetchGroup(); }, []);
 
@@ -45,17 +47,34 @@ export default function AddExpense() {
       toast.error('Please fill all fields');
       return;
     }
-    if (!form.paidBy) {
+    if (!isMultiPayer && !form.paidBy) {
       toast.error('Please select who paid');
       return;
     }
+
+    let finalPaidByMultiple = [];
+    if (isMultiPayer) {
+      const validPayers = form.paidByMultiple.filter(p => p.amount > 0);
+      if (validPayers.length === 0) {
+        toast.error('Please enter how much each person paid');
+        return;
+      }
+      const sum = validPayers.reduce((acc, p) => acc + p.amount, 0);
+      if (Math.abs(sum - parseFloat(form.amount)) > 0.01) {
+        toast.error(`Total paid (₹${sum.toFixed(2)}) must equal total cost (₹${form.amount})`);
+        return;
+      }
+      finalPaidByMultiple = validPayers;
+    }
+
     setLoading(true);
     try {
       await addExpense({
         description: form.description,
         amount:      parseFloat(form.amount),
         groupId,
-        paidBy:      form.paidBy,
+        paidBy:      !isMultiPayer ? form.paidBy : undefined,
+        paidByMultiple: isMultiPayer ? finalPaidByMultiple : undefined,
         splitType:   form.splitType,
         members:     form.members,
         splits:      form.splits,
@@ -84,8 +103,29 @@ export default function AddExpense() {
   };
 
   const getPaidByName = () => {
+    if (isMultiPayer) {
+      const valid = form.paidByMultiple.filter(p => p.amount > 0);
+      if (valid.length === 0) return 'Multiple people';
+      const firstPerson = group?.members?.find(m => (m._id || m) === valid[0].user);
+      if (valid.length === 1) return firstPerson?.name || 'Someone';
+      return `${firstPerson?.name || 'Someone'} and ${valid.length - 1} other${valid.length > 2 ? 's' : ''}`;
+    }
     const m = group?.members?.find(m => (m._id || m) === form.paidBy);
     return m?.name || 'Someone';
+  };
+
+  const handlePayerAmountChange = (userId, value) => {
+    const val = parseFloat(value) || 0;
+    setForm(f => {
+      const exists = f.paidByMultiple.find(p => p.user === userId);
+      let updated;
+      if (exists) {
+        updated = f.paidByMultiple.map(p => p.user === userId ? { ...p, amount: val } : p);
+      } else {
+        updated = [...f.paidByMultiple, { user: userId, amount: val }];
+      }
+      return { ...f, paidByMultiple: updated };
+    });
   };
 
   return (
@@ -146,50 +186,109 @@ export default function AddExpense() {
           {/* Paid By */}
           {group && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Paid By
-              </label>
-              <div className="space-y-2">
-                {group.members.map(member => {
-                  const memberId = member._id || member;
-                  const name     = member.name  || 'Member';
-                  const email    = member.email || '';
-                  const isMe     = memberId === user?.id;
-                  const selected = form.paidBy === memberId;
-
-                  return (
-                    <div
-                      key={memberId}
-                      onClick={() => setForm({ ...form, paidBy: memberId })}
-                      className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition ${
-                        selected
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-gray-700 bg-gray-900 hover:border-gray-500'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
-                          selected ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-400'
-                        } shrink-0`}>
-                          {name[0]?.toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {name}{isMe && <span className="text-xs text-gray-400 ml-1">(you)</span>}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate">{email}</p>
-                        </div>
-                      </div>
-                      {/* Radio */}
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
-                        selected ? 'border-blue-500 bg-blue-500' : 'border-gray-600'
-                      }`}>
-                        {selected && <div className="w-2 h-2 bg-white rounded-full" />}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-300">
+                  Paid By
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsMultiPayer(!isMultiPayer)}
+                  className="text-xs font-medium text-blue-400 hover:text-blue-300 transition"
+                >
+                  {isMultiPayer ? 'Single person' : 'Multiple people'}
+                </button>
               </div>
+
+              {!isMultiPayer ? (
+                <div className="space-y-2">
+                  {group.members.map(member => {
+                    const memberId = member._id || member;
+                    const name     = member.name  || 'Member';
+                    const email    = member.email || '';
+                    const isMe     = memberId === user?.id;
+                    const selected = form.paidBy === memberId;
+
+                    return (
+                      <div
+                        key={memberId}
+                        onClick={() => setForm({ ...form, paidBy: memberId })}
+                        className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                          selected
+                            ? 'border-blue-500 bg-blue-500/10'
+                            : 'border-gray-700 bg-gray-900 hover:border-gray-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm ${
+                            selected ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-400'
+                          } shrink-0`}>
+                            {name[0]?.toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {name}{isMe && <span className="text-xs text-gray-400 ml-1">(you)</span>}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">{email}</p>
+                          </div>
+                        </div>
+                        {/* Radio */}
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
+                          selected ? 'border-blue-500 bg-blue-500' : 'border-gray-600'
+                        }`}>
+                          {selected && <div className="w-2 h-2 bg-white rounded-full" />}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {group.members.map(member => {
+                    const memberId = member._id || member;
+                    const name     = member.name  || 'Member';
+                    const isMe     = memberId === user?.id;
+                    const payerObj = form.paidByMultiple.find(p => p.user === memberId);
+                    const amount   = payerObj?.amount || '';
+
+                    return (
+                      <div key={memberId} className="flex items-center gap-3 p-3 rounded-xl border border-gray-700 bg-gray-900">
+                         <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm bg-gray-800 text-gray-400 shrink-0">
+                            {name[0]?.toUpperCase()}
+                         </div>
+                         <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {name}{isMe && <span className="text-xs text-gray-400 ml-1">(you)</span>}
+                            </p>
+                         </div>
+                         <div className="w-24 shrink-0 relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={amount}
+                              onChange={(e) => handlePayerAmountChange(memberId, e.target.value)}
+                              className="w-full bg-gray-800 border border-gray-600 text-white rounded-lg pl-6 pr-2 py-1.5 focus:outline-none focus:border-blue-500 transition text-sm"
+                              placeholder="0.00"
+                            />
+                         </div>
+                      </div>
+                    );
+                  })}
+                  <div className="flex justify-between items-center px-2 pt-2 text-sm">
+                    <span className="text-gray-400">Total Paid:</span>
+                    <span className={`font-semibold ${
+                      Math.abs(form.paidByMultiple.reduce((a, b) => a + (b.amount || 0), 0) - parseFloat(form.amount || 0)) < 0.01 
+                      ? 'text-emerald-400' 
+                      : 'text-red-400'
+                    }`}>
+                      ₹{form.paidByMultiple.reduce((a, b) => a + (b.amount || 0), 0).toFixed(2)}
+                      {' / '}
+                      ₹{parseFloat(form.amount || 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -273,7 +372,7 @@ export default function AddExpense() {
           {form.amount && form.members.length > 0 && (
             <div className="bg-gray-900 border border-emerald-500/30 rounded-xl p-4 space-y-2 min-w-0">
               <p className="text-sm text-gray-400 font-medium">Summary</p>
-              {form.paidBy && (
+              {(form.paidBy || isMultiPayer) && (
                 <p className="text-white text-sm break-words">
                   💳 <span className="text-blue-400 font-medium">{getPaidByName()}</span> paid ₹{form.amount}
                 </p>
