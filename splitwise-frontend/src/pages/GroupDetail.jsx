@@ -9,6 +9,9 @@ import {
   updateSettlement,
   deleteSettlement,
   getGroupHistory,
+  getWishlist,
+  addExpense,
+  getGroups,
 } from "../services/api";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -25,7 +28,15 @@ import {
   FiActivity,
   FiFileText,
   FiCreditCard,
+  FiShoppingCart,
+  FiX,
+  FiCheck,
 } from "react-icons/fi";
+
+const getCatEmoji = (cat) => {
+  const map = { electronics:'📱', food:'🍕', travel:'✈️', clothing:'👗', home:'🏠', entertainment:'🎮', other:'📦' };
+  return map[cat] || '📦';
+};
 
 export default function GroupDetail() {
   const { id: groupId } = useParams();
@@ -34,10 +45,7 @@ export default function GroupDetail() {
 
   const [expenses, setExpenses] = useState([]);
   const [balances, setBalances] = useState({});
-  const [settlementSummary, setSettlementSummary] = useState({
-    suggestions: [],
-    settlements: [],
-  });
+  const [settlementSummary, setSettlementSummary] = useState({ suggestions: [], settlements: [] });
   const [history, setHistory] = useState([]);
   const [activeTab, setActiveTab] = useState("expenses");
   const [loading, setLoading] = useState(true);
@@ -49,21 +57,34 @@ export default function GroupDetail() {
   const [settlementExpenseIds, setSettlementExpenseIds] = useState([]);
   const [savingSettlement, setSavingSettlement] = useState(false);
 
-  useEffect(() => {
-    fetchAll();
-  }, []);
+  // ── Wishlist import state ──────────────────────────────────────
+  const [wishlistModal,    setWishlistModal]    = useState(false);
+  const [wishlistItems,    setWishlistItems]    = useState([]);
+  const [wishlistLoading,  setWishlistLoading]  = useState(false);
+  const [selectedWishItem, setSelectedWishItem] = useState(null);
+  const [wishPaidBy,       setWishPaidBy]       = useState('');
+  const [wishImporting,    setWishImporting]    = useState(false);
+  const [groupMembers,     setGroupMembers]     = useState([]);
+  const [wishAmount,       setWishAmount]       = useState('');
+
+  useEffect(() => { fetchAll(); }, []);
 
   const fetchAll = async () => {
     try {
-      const [expRes, summaryRes, histRes] = await Promise.all([
+      const [expRes, summaryRes, histRes, groupRes] = await Promise.all([
         getExpenses(groupId),
         getSettlementSummary(groupId),
         getGroupHistory(groupId),
+        getGroups(),
       ]);
       setExpenses(expRes.data);
       setBalances(summaryRes.data.balances || {});
       setSettlementSummary(summaryRes.data || { suggestions: [] });
       setHistory(histRes.data || []);
+
+      // Set group members for wishlist import
+      const foundGroup = groupRes.data.find(g => g._id === groupId);
+      if (foundGroup) setGroupMembers(foundGroup.members);
     } catch {
       toast.error("Failed to load data");
     } finally {
@@ -71,6 +92,55 @@ export default function GroupDetail() {
     }
   };
 
+  // ── Wishlist handlers ──────────────────────────────────────────
+  const openWishlistModal = async () => {
+    setWishlistModal(true);
+    setSelectedWishItem(null);
+    setWishPaidBy(user?.id || '');
+    setWishAmount('');
+    setWishlistLoading(true);
+    try {
+      const res = await getWishlist();
+      setWishlistItems(res.data.filter(i => !i.isBought));
+    } catch {
+      toast.error('Failed to load wishlist');
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
+
+  const handleSelectWishItem = (item) => {
+    setSelectedWishItem(item);
+    setWishAmount(item.price > 0 ? item.price.toString() : '');
+  };
+
+  const handleImportFromWishlist = async () => {
+    if (!selectedWishItem)        { toast.error('Select a wishlist item'); return; }
+    if (!wishPaidBy)              { toast.error('Select who paid');        return; }
+    if (!wishAmount || parseFloat(wishAmount) <= 0) { toast.error('Enter a valid amount'); return; }
+
+    setWishImporting(true);
+    try {
+      await addExpense({
+        description: selectedWishItem.title,
+        amount:      parseFloat(wishAmount),
+        groupId,
+        paidBy:      wishPaidBy,
+        splitType:   'equal',
+        members:     groupMembers.map(m => m._id || m),
+      });
+      toast.success(`"${selectedWishItem.title}" imported as expense! 🎉`);
+      setWishlistModal(false);
+      setSelectedWishItem(null);
+      fetchAll();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to import');
+    } finally {
+      setWishImporting(false);
+    }
+  };
+
+  // ── Existing handlers ──────────────────────────────────────────
   const handleInvite = async () => {
     try {
       const res = await generateInvite(groupId);
@@ -102,13 +172,9 @@ export default function GroupDetail() {
     setSettlementModal(settlement);
     setSettlementAmount(settlement.amount?.toString() || "");
     if (settlement.relatedExpenses && settlement.relatedExpenses.length > 0) {
-      setSettlementExpenseIds(
-        settlement.relatedExpenses.map((e) => e._id || e),
-      );
+      setSettlementExpenseIds(settlement.relatedExpenses.map(e => e._id || e));
     } else if (settlement.relatedExpense) {
-      setSettlementExpenseIds([
-        settlement.relatedExpense._id || settlement.relatedExpense,
-      ]);
+      setSettlementExpenseIds([settlement.relatedExpense._id || settlement.relatedExpense]);
     } else {
       setSettlementExpenseIds([]);
     }
@@ -116,18 +182,13 @@ export default function GroupDetail() {
 
   const handleUpdateSettlement = async () => {
     const amount = parseFloat(settlementAmount);
-    if (!settlementModal || !amount || amount <= 0) {
-      toast.error("Enter a valid amount");
-      return;
-    }
-
+    if (!settlementModal || !amount || amount <= 0) { toast.error("Enter a valid amount"); return; }
     setSavingSettlement(true);
     try {
       await updateSettlement(settlementModal._id, {
         amount,
         note: settlementModal.note,
-        relatedExpenses:
-          settlementExpenseIds.length > 0 ? settlementExpenseIds : null,
+        relatedExpenses: settlementExpenseIds.length > 0 ? settlementExpenseIds : null,
       });
       toast.success("Payment updated!");
       setSettlementModal(null);
@@ -143,7 +204,6 @@ export default function GroupDetail() {
 
   const handleDeleteSettlement = async () => {
     if (!settlementModal) return;
-
     setSavingSettlement(true);
     try {
       await deleteSettlement(settlementModal._id);
@@ -160,63 +220,40 @@ export default function GroupDetail() {
   };
 
   const shareOnWhatsApp = () => {
-    const msg =
-      "Hey! Join my group on Splitwise Clone!\nClick here to join: " +
-      inviteLink;
+    const msg = "Hey! Join my group on Splitwise Clone!\nClick here to join: " + inviteLink;
     window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
   };
 
-  const getItemDate = (item) =>
-    new Date(item.date || item.createdAt || item.updatedAt || Date.now());
+  const getItemDate = (item) => new Date(item.date || item.createdAt || item.updatedAt || Date.now());
 
   const activityItems = [
-    ...expenses.map((expense) => ({
-      type: "expense",
-      id: `expense-${expense._id}`,
-      date: getItemDate(expense),
-      data: expense,
-    })),
+    ...expenses.map((expense) => ({ type: "expense",    id: `expense-${expense._id}`,       date: getItemDate(expense),    data: expense    })),
     ...(settlementSummary.settlements || [])
-      .filter((settlement) => !settlement.isExpenseUpdate)
-      .map((settlement) => ({
-        type: "settlement",
-        id: `settlement-${settlement._id}`,
-        date: getItemDate(settlement),
-        data: settlement,
-      })),
+      .filter(s => !s.isExpenseUpdate)
+      .map((settlement) => ({                             type: "settlement", id: `settlement-${settlement._id}`, date: getItemDate(settlement), data: settlement })),
   ].sort((a, b) => b.date - a.date);
 
-  const userDebts = settlementSummary.userDebts || [];
-  const totalUserDebt = userDebts.reduce(
-    (total, debt) => total + Number(debt.amount || 0),
-    0,
-  );
+  const userDebts     = settlementSummary.userDebts || [];
+  const totalUserDebt = userDebts.reduce((total, debt) => total + Number(debt.amount || 0), 0);
 
   const getSettlementText = (settlement) => {
-    const paidById = settlement.paidBy?._id || settlement.paidBy?.id;
-    const paidToId = settlement.paidTo?._id || settlement.paidTo?.id;
+    const paidById  = settlement.paidBy?._id || settlement.paidBy?.id;
+    const paidToId  = settlement.paidTo?._id || settlement.paidTo?.id;
     const payerName = paidById === user?.id ? "You" : settlement.paidBy?.name;
     const payeeName = paidToId === user?.id ? "you" : settlement.paidTo?.name;
-
     return `${payerName || "Someone"} paid ${payeeName || "someone"}`;
   };
 
   const getExpenseOptionsForSettlement = (settlement) => {
     if (!settlement) return [];
-
-    const payerId =
-      settlement.paidBy?._id || settlement.paidBy?.id || settlement.paidBy;
-    const receiverId =
-      settlement.paidTo?._id || settlement.paidTo?.id || settlement.paidTo;
-
+    const payerId    = settlement.paidBy?._id || settlement.paidBy?.id || settlement.paidBy;
+    const receiverId = settlement.paidTo?._id || settlement.paidTo?.id || settlement.paidTo;
     return expenses.filter((expense) => {
-      const expensePaidById =
-        expense.paidBy?._id || expense.paidBy?.id || expense.paidBy;
-      const payerInSplit = expense.splits?.some((split) => {
+      const expensePaidById = expense.paidBy?._id || expense.paidBy?.id || expense.paidBy;
+      const payerInSplit    = expense.splits?.some((split) => {
         const splitUserId = split.user?._id || split.user?.id || split.user;
         return splitUserId === payerId;
       });
-
       return expensePaidById === receiverId && payerInSplit;
     });
   };
@@ -225,13 +262,10 @@ export default function GroupDetail() {
     <div className="min-h-screen bg-gray-950 text-white">
       <Toaster />
 
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────── */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4 min-w-0">
-          <button
-            onClick={() => navigate("/")}
-            className="text-gray-400 hover:text-white transition shrink-0"
-          >
+          <button onClick={() => navigate("/")} className="text-gray-400 hover:text-white transition shrink-0">
             <FiArrowLeft size={20} />
           </button>
           <div className="min-w-0">
@@ -239,24 +273,38 @@ export default function GroupDetail() {
             <p className="text-gray-400 text-sm">{expenses.length} expenses</p>
           </div>
         </div>
-        <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+
+        {/* ── Action buttons (4 buttons now) ─────────────────── */}
+        <div className="grid grid-cols-4 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           <button
             onClick={handleInvite}
-            className="flex items-center justify-center gap-1.5 sm:gap-2 bg-gray-800 hover:bg-gray-700 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition min-w-0"
+            className="flex items-center justify-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition"
           >
             <FiShare2 size={14} className="shrink-0" />
             <span className="truncate">Invite</span>
           </button>
+
+          {/* 🆕 Import from Wishlist */}
+          <button
+            onClick={openWishlistModal}
+            className="flex items-center justify-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition"
+          >
+            <FiShoppingCart size={14} className="shrink-0" />
+            <span className="truncate hidden sm:inline">Wishlist</span>
+            <span className="truncate sm:hidden">Import</span>
+          </button>
+
           <Link
             to={`/group/${groupId}/add-expense`}
-            className="flex items-center justify-center gap-1.5 sm:gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition min-w-0"
+            className="flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition"
           >
             <FiPlus className="shrink-0" />
             <span className="truncate">Add</span>
           </Link>
+
           <button
             onClick={() => navigate("/group/" + groupId + "/settle-up")}
-            className="flex items-center justify-center gap-1.5 sm:gap-2 bg-orange-500 hover:bg-orange-600 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition min-w-0"
+            className="flex items-center justify-center gap-1.5 bg-orange-500 hover:bg-orange-600 text-white px-2 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition"
           >
             <FiDollarSign size={14} className="shrink-0" />
             <span className="truncate">Settle</span>
@@ -264,16 +312,14 @@ export default function GroupDetail() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* ── Tabs ───────────────────────────────────────────────── */}
       <div className="flex border-b border-gray-800 px-4 sm:px-6 overflow-x-auto">
         {["expenses", "balances", "history"].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`py-3 px-4 text-sm font-medium capitalize border-b-2 transition ${
-              activeTab === tab
-                ? "border-emerald-500 text-emerald-400"
-                : "border-transparent text-gray-400 hover:text-white"
+              activeTab === tab ? "border-emerald-500 text-emerald-400" : "border-transparent text-gray-400 hover:text-white"
             }`}
           >
             {tab}
@@ -281,11 +327,13 @@ export default function GroupDetail() {
         ))}
       </div>
 
+      {/* ── Tab Content ────────────────────────────────────────── */}
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
         {loading ? (
           <div className="text-center text-gray-400 py-20">Loading...</div>
         ) : activeTab === "expenses" ? (
           <div className="space-y-3">
+            {/* Debt summary */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0">
@@ -294,42 +342,30 @@ export default function GroupDetail() {
                 <div className="min-w-0 w-full">
                   {userDebts.length > 0 ? (
                     <>
-                      <p className="font-semibold text-amber-100">
-                        You owe ₹{totalUserDebt.toFixed(2)} overall
-                      </p>
+                      <p className="font-semibold text-amber-100">You owe ₹{totalUserDebt.toFixed(2)} overall</p>
                       <div className="mt-2 space-y-1">
                         {userDebts.map((debt) => (
-                          <p
-                            key={debt.id}
-                            className="text-sm text-amber-50/90 break-words"
-                          >
-                            You owe {debt.name || "Someone"} ₹
-                            {Number(debt.amount || 0).toFixed(2)}
+                          <p key={debt.id} className="text-sm text-amber-50/90 break-words">
+                            You owe {debt.name || "Someone"} ₹{Number(debt.amount || 0).toFixed(2)}
                           </p>
                         ))}
                       </div>
                     </>
                   ) : (
                     <>
-                      <p className="font-semibold text-amber-100">
-                        You are all settled up
-                      </p>
-                      <p className="text-sm text-amber-50/80 mt-1">
-                        No pending amount from your side in this group.
-                      </p>
+                      <p className="font-semibold text-amber-100">You are all settled up</p>
+                      <p className="text-sm text-amber-50/80 mt-1">No pending amount from your side in this group.</p>
                     </>
                   )}
                 </div>
               </div>
             </div>
+
             {activityItems.length === 0 ? (
               <div className="text-center py-20">
                 <div className="text-5xl mb-4">💸</div>
                 <p className="text-gray-400">No expenses yet</p>
-                <Link
-                  to={`/group/${groupId}/add-expense`}
-                  className="inline-block mt-4 text-emerald-400 hover:underline text-sm"
-                >
+                <Link to={`/group/${groupId}/add-expense`} className="inline-block mt-4 text-emerald-400 hover:underline text-sm">
                   Add first expense
                 </Link>
               </div>
@@ -337,42 +373,26 @@ export default function GroupDetail() {
               activityItems.map((item) => {
                 if (item.type === "settlement") {
                   const settlement = item.data;
-
                   return (
                     <div
                       key={item.id}
                       onClick={() => openSettlementModal(settlement)}
                       className="bg-gray-900 border border-emerald-500/30 hover:border-emerald-400 rounded-2xl p-4 cursor-pointer transition"
-                      role="button"
-                      tabIndex={0}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-                            <FiDollarSign
-                              className="text-emerald-400"
-                              size={20}
-                            />
+                            <FiDollarSign className="text-emerald-400" size={20} />
                           </div>
                           <div className="min-w-0">
-                            <h3 className="font-semibold truncate">
-                              {getSettlementText(settlement)}
-                            </h3>
-                            <p className="text-xs text-gray-500">
-                              {item.date.toLocaleDateString("en-IN")}
-                            </p>
-                            {settlement.relatedExpenses &&
-                            settlement.relatedExpenses.length > 0 ? (
+                            <h3 className="font-semibold truncate">{getSettlementText(settlement)}</h3>
+                            <p className="text-xs text-gray-500">{item.date.toLocaleDateString("en-IN")}</p>
+                            {settlement.relatedExpenses?.length > 0 ? (
                               <p className="text-xs text-emerald-300 mt-1 break-words">
-                                For{" "}
-                                {settlement.relatedExpenses
-                                  .map((e) => e.description)
-                                  .join(", ")}
+                                For {settlement.relatedExpenses.map(e => e.description).join(', ')}
                               </p>
                             ) : settlement.relatedExpense ? (
-                              <p className="text-xs text-emerald-300 mt-1 break-words">
-                                For {settlement.relatedExpense.description}
-                              </p>
+                              <p className="text-xs text-emerald-300 mt-1 break-words">For {settlement.relatedExpense.description}</p>
                             ) : null}
                           </div>
                         </div>
@@ -385,93 +405,56 @@ export default function GroupDetail() {
                 }
 
                 const exp = item.data;
-
                 return (
-                  <div
-                    key={item.id}
-                    className="bg-gray-900 border border-gray-800 rounded-2xl p-4"
-                  >
-                    {/* Top row */}
+                  <div key={item.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="min-w-0">
-                        <h3 className="font-semibold truncate">
-                          {exp.description}
-                        </h3>
+                        <h3 className="font-semibold truncate">{exp.description}</h3>
                         <p className="text-gray-400 text-sm mt-0.5 truncate">
-                          Paid by{" "}
-                          {exp.paidByMultiple && exp.paidByMultiple.length > 1
-                            ? `${exp.paidBy?.name || "Someone"} and ${exp.paidByMultiple.length - 1} other${exp.paidByMultiple.length > 2 ? "s" : ""}`
-                            : exp.paidBy?.name || "Someone"}
+                          Paid by {exp.paidByMultiple && exp.paidByMultiple.length > 1
+                            ? `${exp.paidBy?.name || 'Someone'} and ${exp.paidByMultiple.length - 1} other${exp.paidByMultiple.length > 2 ? 's' : ''}`
+                            : exp.paidBy?.name || 'Someone'}
                         </p>
                       </div>
                       <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                        <span className="text-emerald-400 font-bold text-base sm:text-lg">
-                          ₹{exp.amount}
-                        </span>
+                        <span className="text-emerald-400 font-bold text-base sm:text-lg">₹{exp.amount}</span>
                         <button
-                          onClick={() =>
-                            navigate(
-                              "/group/" + groupId + "/edit-expense/" + exp._id,
-                            )
-                          }
+                          onClick={() => navigate("/group/" + groupId + "/edit-expense/" + exp._id)}
                           className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition"
-                          title="Edit"
                         >
                           <FiEdit2 size={14} />
                         </button>
                         <button
                           onClick={() => setDeleteModal(exp)}
                           className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
-                          title="Delete"
                         >
                           <FiTrash2 size={14} />
                         </button>
                       </div>
                     </div>
 
-                    {/* Splits */}
+                    {/* Splits — payers show green */}
                     <div className="flex flex-wrap gap-2">
                       {exp.splits?.map((split) => {
                         const splitUserId = split.user?._id || split.user;
-
-                        // Check if this person is a payer (single or multiple)
-                        const isPayer =
-                          exp.paidByMultiple && exp.paidByMultiple.length > 0
-                            ? exp.paidByMultiple.some(
-                                (p) =>
-                                  (p.user?._id || p.user) === splitUserId &&
-                                  p.amount > 0,
-                              )
-                            : (exp.paidBy?._id || exp.paidBy) === splitUserId;
-
+                        const isPayer = exp.paidByMultiple && exp.paidByMultiple.length > 0
+                          ? exp.paidByMultiple.some(p => (p.user?._id || p.user) === splitUserId && p.amount > 0)
+                          : (exp.paidBy?._id || exp.paidBy) === splitUserId;
                         const isGreen = split.settled || isPayer;
-
                         return (
                           <span
                             key={split._id}
                             className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${
-                              isGreen
-                                ? "bg-emerald-500/10 text-emerald-300"
-                                : "bg-red-500/10 text-red-300"
+                              isGreen ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"
                             }`}
                           >
-                            {isGreen ? (
-                              <FiCheckCircle size={12} />
-                            ) : (
-                              <FiXCircle size={12} />
-                            )}
-                            <span>
-                              {split.user?.name}: ₹
-                              {Number(split.amount || 0).toFixed(2)}
-                            </span>
+                            {isGreen ? <FiCheckCircle size={12} /> : <FiXCircle size={12} />}
+                            <span>{split.user?.name}: ₹{Number(split.amount || 0).toFixed(2)}</span>
                           </span>
                         );
                       })}
                     </div>
-
-                    <p className="text-xs text-gray-600 mt-2">
-                      {item.date.toLocaleDateString("en-IN")}
-                    </p>
+                    <p className="text-xs text-gray-600 mt-2">{item.date.toLocaleDateString("en-IN")}</p>
                   </div>
                 );
               })
@@ -486,58 +469,35 @@ export default function GroupDetail() {
               </div>
             ) : (
               <>
-                {settlementSummary.suggestions?.length > 0 ? (
+                {settlementSummary.suggestions?.length > 0 && (
                   <div className="space-y-3">
                     {settlementSummary.suggestions.map((item, index) => (
-                      <div
-                        key={`${item.paidBy.id}-${item.paidTo.id}-${index}`}
-                        className="bg-gray-900 border border-gray-800 rounded-2xl p-4"
-                      >
+                      <div key={`${item.paidBy.id}-${item.paidTo.id}-${index}`} className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
                         <p className="font-medium text-sm sm:text-base break-words">
-                          {item.paidBy.name} borrows ₹{item.amount.toFixed(2)}{" "}
-                          from {item.paidTo.name}
+                          {item.paidBy.name} borrows ₹{item.amount.toFixed(2)} from {item.paidTo.name}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1 break-all">
-                          {item.paidBy.email} owes {item.paidTo.email}
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1 break-all">{item.paidBy.email} owes {item.paidTo.email}</p>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 text-center text-gray-400">
-                    Everyone is settled up
-                  </div>
                 )}
-
                 <div className="pt-3 space-y-3">
                   {Object.entries(balances).map(([userId, balance]) => (
-                    <div
-                      key={userId}
-                      className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+                    <div key={userId} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center shrink-0">
                           <FiUsers className="text-gray-400" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {balance.name || userId.slice(-6)}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {balance.email || "Group member"}
-                          </p>
+                          <p className="text-sm font-medium truncate">{balance.name || userId.slice(-6)}</p>
+                          <p className="text-xs text-gray-500 truncate">{balance.email || "Group member"}</p>
                         </div>
                       </div>
                       {Math.abs(balance.amount) < 0.01 ? (
-                        <span className="text-gray-400 text-sm self-end sm:self-auto">
-                          is settled up
-                        </span>
+                        <span className="text-gray-400 text-sm">is settled up</span>
                       ) : (
-                        <span
-                          className={`font-bold text-lg self-end sm:self-auto ${balance.amount > 0 ? "text-emerald-400" : "text-red-400"}`}
-                        >
-                          {balance.amount > 0 ? "+" : "-"}₹
-                          {Math.abs(balance.amount).toFixed(2)}
+                        <span className={`font-bold text-lg ${balance.amount > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {balance.amount > 0 ? "+" : "-"}₹{Math.abs(balance.amount).toFixed(2)}
                         </span>
                       )}
                     </div>
@@ -554,62 +514,27 @@ export default function GroupDetail() {
                 <p className="text-gray-400">No activity yet</p>
               </div>
             ) : (
-              history.map((item, index) => {
-                let Icon = FiActivity;
-                let bgColor = "bg-gray-800";
-                let iconColor = "text-gray-400";
-
-                if (item.action === "added" || item.action === "created") {
-                  Icon = FiPlus;
-                  bgColor = "bg-emerald-500/10";
-                  iconColor = "text-emerald-400";
-                } else if (item.action === "updated") {
-                  Icon = FiEdit2;
-                  bgColor = "bg-blue-500/10";
-                  iconColor = "text-blue-400";
-                } else if (item.action === "deleted") {
-                  Icon = FiTrash2;
-                  bgColor = "bg-red-500/10";
-                  iconColor = "text-red-400";
-                } else if (
-                  item.action === "paid" ||
-                  item.action === "marked_paid"
-                ) {
-                  Icon = FiCreditCard;
-                  bgColor = "bg-emerald-500/10";
-                  iconColor = "text-emerald-400";
-                }
+              history.map((item) => {
+                let Icon = FiActivity, bgColor = "bg-gray-800", iconColor = "text-gray-400";
+                if      (item.action === "added"   || item.action === "created")     { Icon = FiPlus;       bgColor = "bg-emerald-500/10"; iconColor = "text-emerald-400"; }
+                else if (item.action === "updated")                                  { Icon = FiEdit2;      bgColor = "bg-blue-500/10";    iconColor = "text-blue-400";    }
+                else if (item.action === "deleted")                                  { Icon = FiTrash2;     bgColor = "bg-red-500/10";     iconColor = "text-red-400";     }
+                else if (item.action === "paid" || item.action === "marked_paid")    { Icon = FiCreditCard; bgColor = "bg-emerald-500/10"; iconColor = "text-emerald-400"; }
 
                 return (
-                  <div
-                    key={item._id}
-                    className="relative z-10 flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group"
-                  >
+                  <div key={item._id} className="relative z-10 flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group">
                     <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-gray-950 bg-gray-900 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 mx-auto">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center ${bgColor}`}
-                      >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bgColor}`}>
                         <Icon size={14} className={iconColor} />
                       </div>
                     </div>
-
                     <div className="w-[calc(100%-3rem)] md:w-[calc(50%-2rem)] bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 transition">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-sm truncate">
-                          {item.user?.name || "Someone"}
-                        </span>
-                        <span className="text-xs text-gray-500 truncate">
-                          {new Date(item.date).toLocaleString()}
-                        </span>
+                        <span className="font-semibold text-sm truncate">{item.user?.name || "Someone"}</span>
+                        <span className="text-xs text-gray-500 truncate">{new Date(item.date).toLocaleString()}</span>
                       </div>
-                      <p className="text-sm text-gray-300 break-words">
-                        {item.description}
-                      </p>
-                      {item.amount > 0 && (
-                        <div className="mt-2 text-emerald-400 font-semibold text-sm">
-                          ₹{item.amount.toFixed(2)}
-                        </div>
-                      )}
+                      <p className="text-sm text-gray-300 break-words">{item.description}</p>
+                      {item.amount > 0 && <div className="mt-2 text-emerald-400 font-semibold text-sm">₹{item.amount.toFixed(2)}</div>}
                     </div>
                   </div>
                 );
@@ -619,7 +544,169 @@ export default function GroupDetail() {
         )}
       </div>
 
-      {/* Invite Modal */}
+      {/* ══════════════════════════════════════════════════════════
+          🆕 IMPORT FROM WISHLIST MODAL
+      ══════════════════════════════════════════════════════════ */}
+      {wishlistModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 px-4 pb-4 sm:pb-0">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-md max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5 shrink-0">
+              <div>
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <FiShoppingCart className="text-purple-400" /> Import from Wishlist
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">Select an item to add as group expense</p>
+              </div>
+              <button onClick={() => setWishlistModal(false)} className="text-gray-400 hover:text-white transition">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 space-y-4 pr-1">
+              {/* Step 1 — Pick item */}
+              <div>
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  Step 1 — Choose Wishlist Item
+                </p>
+                {wishlistLoading ? (
+                  <p className="text-gray-400 text-sm text-center py-6">Loading wishlist...</p>
+                ) : wishlistItems.length === 0 ? (
+                  <div className="text-center py-6 border border-dashed border-gray-700 rounded-xl">
+                    <p className="text-4xl mb-2">🛍️</p>
+                    <p className="text-gray-400 text-sm">No pending wishlist items</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {wishlistItems.map(item => {
+                      const isSelected = selectedWishItem?._id === item._id;
+                      return (
+                        <div
+                          key={item._id}
+                          onClick={() => handleSelectWishItem(item)}
+                          className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                            isSelected
+                              ? 'border-purple-500 bg-purple-500/10'
+                              : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                          }`}
+                        >
+                          <div className="w-9 h-9 rounded-xl bg-gray-700 flex items-center justify-center text-lg shrink-0">
+                            {getCatEmoji(item.category)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{item.title}</p>
+                            <p className="text-xs text-gray-400">
+                              by {item.addedBy?.name || 'Someone'}
+                              {item.price > 0 && <span className="text-emerald-400 ml-2">₹{item.price.toLocaleString()}</span>}
+                            </p>
+                          </div>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition ${
+                            isSelected ? 'border-purple-500 bg-purple-500' : 'border-gray-600'
+                          }`}>
+                            {isSelected && <FiCheck size={10} className="text-white" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Step 2 — Amount (shown after item selected) */}
+              {selectedWishItem && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                    Step 2 — Confirm Amount
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={wishAmount}
+                      onChange={e => setWishAmount(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl pl-8 pr-4 py-3 focus:outline-none focus:border-purple-500 transition text-sm"
+                      placeholder="Enter amount"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Wishlist price: ₹{selectedWishItem.price > 0 ? selectedWishItem.price.toLocaleString() : 'not set'} — edit if needed
+                  </p>
+                </div>
+              )}
+
+              {/* Step 3 — Who paid */}
+              {selectedWishItem && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                    Step 3 — Who Paid?
+                  </p>
+                  <div className="space-y-2">
+                    {groupMembers.map(member => {
+                      const memberId = member._id || member;
+                      const name     = member.name  || 'Member';
+                      const email    = member.email || '';
+                      const isMe     = memberId === user?.id;
+                      const selected = wishPaidBy === memberId;
+
+                      return (
+                        <div
+                          key={memberId}
+                          onClick={() => setWishPaidBy(memberId)}
+                          className={`flex items-center justify-between gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                            selected ? 'border-blue-500 bg-blue-500/10' : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
+                              selected ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-400'
+                            }`}>
+                              {name[0]?.toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">
+                                {name}{isMe && <span className="text-xs text-gray-400 ml-1">(you)</span>}
+                              </p>
+                              {email && <p className="text-xs text-gray-500 truncate">{email}</p>}
+                            </div>
+                          </div>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
+                            selected ? 'border-blue-500 bg-blue-500' : 'border-gray-600'
+                          }`}>
+                            {selected && <div className="w-2 h-2 bg-white rounded-full" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 Will be split equally among all {groupMembers.length} members
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer buttons */}
+            <div className="flex gap-3 pt-4 shrink-0 border-t border-gray-800 mt-4">
+              <button
+                onClick={() => setWishlistModal(false)}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImportFromWishlist}
+                disabled={!selectedWishItem || !wishPaidBy || !wishAmount || wishImporting}
+                className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-xl font-semibold transition text-sm"
+              >
+                {wishImporting ? 'Importing...' : '🛍️ Import as Expense'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Invite Modal ────────────────────────────────────────── */}
       {showInvite && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
@@ -628,40 +715,27 @@ export default function GroupDetail() {
                 <FiShare2 className="text-emerald-400" size={24} />
               </div>
               <h2 className="text-xl font-bold">Invite Friends</h2>
-              <p className="text-gray-400 text-sm mt-2">
-                Share this link to invite people to your group
-              </p>
+              <p className="text-gray-400 text-sm mt-2">Share this link to invite people to your group</p>
             </div>
             <div className="bg-gray-800 rounded-xl p-4 mb-4 text-sm text-gray-300 leading-relaxed break-words">
-              Hey! Join my group on Splitwise Clone 🎉
-              <br />
-              Click the link below to join:
-              <br />
+              Hey! Join my group on Splitwise Clone 🎉<br />
+              Click the link below to join:<br />
               <span className="text-emerald-400 break-all">{inviteLink}</span>
             </div>
-            <button
-              onClick={copyLink}
-              className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-semibold transition mb-3"
-            >
+            <button onClick={copyLink} className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-semibold transition mb-3">
               <FiCopy /> Copy Invite Link
             </button>
-            <button
-              onClick={shareOnWhatsApp}
-              className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold transition mb-3"
-            >
+            <button onClick={shareOnWhatsApp} className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-semibold transition mb-3">
               📱 Share on WhatsApp
             </button>
-            <button
-              onClick={() => setShowInvite(false)}
-              className="w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition"
-            >
+            <button onClick={() => setShowInvite(false)} className="w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition">
               Close
             </button>
           </div>
         </div>
       )}
 
-      {/* Edit/Delete Payment Modal */}
+      {/* ── Edit/Delete Payment Modal ───────────────────────────── */}
       {settlementModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-sm">
@@ -670,100 +744,49 @@ export default function GroupDetail() {
                 <FiDollarSign className="text-emerald-400" size={24} />
               </div>
               <h2 className="text-xl font-bold">Edit Payment</h2>
-              <p className="text-gray-400 text-sm mt-2">
-                {getSettlementText(settlementModal)}
-              </p>
+              <p className="text-gray-400 text-sm mt-2">{getSettlementText(settlementModal)}</p>
             </div>
-
             <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Amount (₹)
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Amount (₹)</label>
               <input
-                type="number"
-                min="1"
-                value={settlementAmount}
+                type="number" min="1" value={settlementAmount}
                 onChange={(e) => setSettlementAmount(e.target.value)}
                 className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
                 autoFocus
               />
             </div>
-
             <div className="mb-5">
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Related expenses
-              </label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Related expenses</label>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                {getExpenseOptionsForSettlement(settlementModal).map(
-                  (expense) => {
-                    const isSelected = settlementExpenseIds.includes(
-                      expense._id,
-                    );
-                    return (
-                      <label
-                        key={expense._id}
-                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${isSelected ? "border-emerald-500 bg-emerald-500/10" : "border-gray-700 bg-gray-800 hover:bg-gray-700"}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSettlementExpenseIds([
-                                ...settlementExpenseIds,
-                                expense._id,
-                              ]);
-                            } else {
-                              setSettlementExpenseIds(
-                                settlementExpenseIds.filter(
-                                  (id) => id !== expense._id,
-                                ),
-                              );
-                            }
-                          }}
-                          className="w-4 h-4 rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-700"
-                        />
-                        <span className="text-sm font-medium">
-                          {expense.description} - ₹
-                          {Number(expense.amount || 0).toFixed(2)}
-                        </span>
-                      </label>
-                    );
-                  },
-                )}
-                {getExpenseOptionsForSettlement(settlementModal).length ===
-                  0 && (
-                  <p className="text-sm text-gray-400">
-                    No related expenses found.
-                  </p>
+                {getExpenseOptionsForSettlement(settlementModal).map((expense) => {
+                  const isSelected = settlementExpenseIds.includes(expense._id);
+                  return (
+                    <label key={expense._id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-700 bg-gray-800 hover:bg-gray-700'}`}>
+                      <input
+                        type="checkbox" checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) setSettlementExpenseIds([...settlementExpenseIds, expense._id]);
+                          else setSettlementExpenseIds(settlementExpenseIds.filter(id => id !== expense._id));
+                        }}
+                        className="w-4 h-4 rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-700"
+                      />
+                      <span className="text-sm font-medium">{expense.description} - ₹{Number(expense.amount || 0).toFixed(2)}</span>
+                    </label>
+                  );
+                })}
+                {getExpenseOptionsForSettlement(settlementModal).length === 0 && (
+                  <p className="text-sm text-gray-400">No related expenses found.</p>
                 )}
               </div>
             </div>
-
             <div className="space-y-3">
-              <button
-                onClick={handleUpdateSettlement}
-                disabled={savingSettlement}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold transition"
-              >
+              <button onClick={handleUpdateSettlement} disabled={savingSettlement} className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold transition">
                 {savingSettlement ? "Saving..." : "Save changes"}
               </button>
-              <button
-                onClick={handleDeleteSettlement}
-                disabled={savingSettlement}
-                className="w-full bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold transition"
-              >
+              <button onClick={handleDeleteSettlement} disabled={savingSettlement} className="w-full bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold transition">
                 Delete payment
               </button>
-              <button
-                onClick={() => {
-                  setSettlementModal(null);
-                  setSettlementAmount("");
-                  setSettlementExpenseIds([]);
-                }}
-                disabled={savingSettlement}
-                className="w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-white py-3 rounded-xl transition"
-              >
+              <button onClick={() => { setSettlementModal(null); setSettlementAmount(""); setSettlementExpenseIds([]); }} disabled={savingSettlement} className="w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-white py-3 rounded-xl transition">
                 Cancel
               </button>
             </div>
@@ -771,7 +794,7 @@ export default function GroupDetail() {
         </div>
       )}
 
-      {/* Delete Expense Modal */}
+      {/* ── Delete Expense Modal ────────────────────────────────── */}
       {deleteModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-sm">
@@ -781,26 +804,12 @@ export default function GroupDetail() {
               </div>
               <h2 className="text-xl font-bold">Delete Expense?</h2>
               <p className="text-gray-400 text-sm mt-2">
-                Delete{" "}
-                <span className="text-white font-medium">
-                  "{deleteModal.description}"
-                </span>
-                ? This cannot be undone.
+                Delete <span className="text-white font-medium">"{deleteModal.description}"</span>? This cannot be undone.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setDeleteModal(null)}
-                className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteExpense}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition"
-              >
-                Delete
-              </button>
+              <button onClick={() => setDeleteModal(null)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl transition">Cancel</button>
+              <button onClick={handleDeleteExpense} className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-semibold transition">Delete</button>
             </div>
           </div>
         </div>
