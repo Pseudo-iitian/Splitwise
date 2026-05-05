@@ -62,4 +62,7 @@ export const sendChatMessage = (groupId, data) =>
 export const deleteChatMessage = (groupId, messageId) => 
   api.delete(`/groups/${groupId}/chat/${messageId}`);
 
+export const updateProfile = (data) => api.put('/auth/profile', data);
+export const verifyUpi     = (data) => api.post('/auth/verify-upi', data);
+
 export default api;

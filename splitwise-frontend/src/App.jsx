@@ -10,6 +10,7 @@ import JoinGroup from './pages/JoinGroup';
 import EditExpense from './pages/EditExpense';
 import SettleUp from './pages/SettleUp';
 import Wishlist from './pages/Wishlist';
+import Profile from './pages/Profile';
 
 
 
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/group/:groupId/settle-up" element={
           <PrivateRoute><SettleUp /></PrivateRoute>
         }/>
+        <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
       </Routes>
     </BrowserRouter>
   );
