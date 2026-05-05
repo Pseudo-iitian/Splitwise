@@ -15,7 +15,8 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'https://splitwise-tres.vercel.app',
-    'https://splitwise-five-phi.vercel.app'
+    'https://splitwise-five-phi.vercel.app',
+    'https://splitwise-27cq.onrender.com'
   ],
   credentials: true
 }));
