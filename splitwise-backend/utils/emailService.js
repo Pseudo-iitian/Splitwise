@@ -1,11 +1,12 @@
-// emailService.js - Free email using Nodemailer + Gmail
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp-relay.brevo.com',   // IPv4 only — Render pe works
+  port: 587,
+  secure: false,
   auth: {
-    user: process.env.EMAIL_USER,      // your Gmail
-    pass: process.env.EMAIL_PASS,  // Gmail App Password (NOT your real password)
+    user: process.env.BREVO_EMAIL,   // Brevo login email
+    pass: process.env.BREVO_SMTP_KEY, // Brevo SMTP key (API key nahi)
   },
 });
 
@@ -20,7 +21,7 @@ const sendExpenseNotificationEmail = async (
 
   try {
     await transporter.sendMail({
-      from: `"Splitwise App" <${process.env.EMAIL_USER}>`,
+      from: `"Splitwise App" <${process.env.BREVO_EMAIL}>`,
       to: emails.join(','),
       subject: `💸 New Expense in ${groupName}`,
       html: `
@@ -33,7 +34,7 @@ const sendExpenseNotificationEmail = async (
       `
     });
 
-    console.log('✅ Email sent via Gmail');
+    console.log('✅ Email sent via Brevo');
   } catch (err) {
     console.error('❌ Email error:', err.message);
   }
