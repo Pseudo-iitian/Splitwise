@@ -1,8 +1,18 @@
 // utils/cache.js
-// Upstash Redis — HTTP based, works on Vercel serverless perfectly
+// Standard Redis client for Redis Cloud
+const Redis = require('ioredis');
 
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const REDIS_URL = process.env.REDIS_URL;
+
+let redis = null;
+if (REDIS_URL) {
+  redis = new Redis(REDIS_URL);
+  redis.on('error', (err) => {
+    console.error('Redis connection error:', err);
+  });
+} else {
+  console.warn('REDIS_URL not provided. Caching is disabled.');
+}
 
 // TTL constants (seconds)
 const TTL = {
@@ -12,49 +22,50 @@ const TTL = {
   HISTORY:    60 * 5,   // 5 minutes
 };
 
-// ── Low-level Upstash REST call ───────────────────────────────────────────────
-async function upstash(command, ...args) {
-  if (!REDIS_URL || !REDIS_TOKEN) return null; // Redis not configured — skip silently
-
-  try {
-    const res = await fetch(`${REDIS_URL}/${command}/${args.map(a => encodeURIComponent(a)).join('/')}`, {
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
-    });
-    const data = await res.json();
-    return data.result ?? null;
-  } catch {
-    return null; // Redis error — fallback to DB silently
-  }
-}
-
 // ── GET from cache ────────────────────────────────────────────────────────────
 async function getCache(key) {
-  const val = await upstash('get', key);
-  if (!val) return null;
-  try { return JSON.parse(val); } catch { return null; }
+  if (!redis) return null;
+  try {
+    const val = await redis.get(key);
+    if (!val) return null;
+    return JSON.parse(val);
+  } catch {
+    return null;
+  }
 }
 
 // ── SET cache with TTL ────────────────────────────────────────────────────────
 async function setCache(key, data, ttl = 60) {
-  await upstash('set', key, JSON.stringify(data), 'EX', ttl);
+  if (!redis) return;
+  try {
+    await redis.set(key, JSON.stringify(data), 'EX', ttl);
+  } catch (err) {
+    console.error('Redis set error:', err);
+  }
 }
 
 // ── DELETE single key ─────────────────────────────────────────────────────────
 async function delCache(key) {
-  await upstash('del', key);
+  if (!redis) return;
+  try {
+    await redis.del(key);
+  } catch (err) {
+    console.error('Redis del error:', err);
+  }
 }
 
 // ── DELETE multiple keys by pattern (using KEYS — ok for small datasets) ──────
 async function delPattern(pattern) {
-  if (!REDIS_URL || !REDIS_TOKEN) return;
+  if (!redis) return;
   try {
-    const res = await fetch(`${REDIS_URL}/keys/${encodeURIComponent(pattern)}`, {
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
-    });
-    const data = await res.json();
-    const keys = data.result || [];
-    await Promise.all(keys.map(k => delCache(k)));
-  } catch {}
+    // Note: KEYS is fine for small datasets. For larger ones, SCAN should be used.
+    const keysToDel = await redis.keys(pattern);
+    if (keysToDel.length > 0) {
+      await redis.del(...keysToDel);
+    }
+  } catch (err) {
+    console.error('Redis delPattern error:', err);
+  }
 }
 
 // ── Cache key builders ────────────────────────────────────────────────────────
