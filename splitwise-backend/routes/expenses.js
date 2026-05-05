@@ -6,6 +6,8 @@ const auth       = require('../middleware/auth');
 const { splitEqually, splitByPercentage, splitByExact } = require('../utils/splitHelpers');
 const { logActivity }    = require('../utils/activityLogger');
 const { getCache, setCache, invalidateGroup, keys, TTL } = require('../utils/cache');
+const Group = require('../models/Group');
+const { sendExpenseNotificationEmail } = require('../utils/emailService');
 
 // ── Attach settlement status to expenses ──────────────────────────────────────
 async function attachSplitSettlementStatus(expenses) {
@@ -93,6 +95,28 @@ router.post('/', auth, async (req, res) => {
 
     // 🗑️ Invalidate group caches
     await invalidateGroup(groupId, req.user.id);
+
+    // 📧 Send email notifications to all group members
+    try {
+      const groupInfo = await Group.findById(groupId).populate('members', 'name email');
+      if (groupInfo) {
+        const recipientEmails = groupInfo.members.map(member => member.email);
+        
+        const addedByUser = groupInfo.members.find(member => member._id.toString() === req.user.id);
+        const addedByName = addedByUser ? addedByUser.name : 'A member';
+
+        // Fire and forget email sending
+        sendExpenseNotificationEmail(
+          recipientEmails,
+          groupInfo.name,
+          description,
+          amount,
+          addedByName
+        );
+      }
+    } catch (emailErr) {
+      console.error('Failed to trigger email notification:', emailErr);
+    }
 
     res.status(201).json(expense);
   } catch (err) {
