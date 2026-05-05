@@ -6,7 +6,18 @@ const REDIS_URL = process.env.REDIS_URL;
 
 let redis = null;
 if (REDIS_URL) {
-  redis = new Redis(REDIS_URL);
+  // Add timeouts so it doesn't hang Vercel if the connection is slow or failing
+  redis = new Redis(REDIS_URL, {
+    connectTimeout: 5000,     // Wait max 5 seconds to connect
+    commandTimeout: 2000,     // Wait max 2 seconds for a command to finish
+    maxRetriesPerRequest: 1,  // Don't keep retrying forever
+    retryStrategy(times) {
+      // Don't reconnect automatically more than 3 times
+      if (times > 3) return null; 
+      return Math.min(times * 50, 2000);
+    }
+  });
+  
   redis.on('error', (err) => {
     console.error('Redis connection error:', err);
   });
