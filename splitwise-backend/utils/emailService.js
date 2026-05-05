@@ -1,6 +1,13 @@
-const { Resend } = require('resend');
+// emailService.js - Free email using Nodemailer + Gmail
+const nodemailer = require('nodemailer');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,      // your Gmail
+    pass: process.env.EMAIL_PASS,  // Gmail App Password (NOT your real password)
+  },
+});
 
 const sendExpenseNotificationEmail = async (
   emails,
@@ -12,9 +19,9 @@ const sendExpenseNotificationEmail = async (
   if (!emails?.length) return;
 
   try {
-    await resend.emails.send({
-      from: 'Splitwise <onboarding@resend.dev>', // dev sender
-      to: emails,
+    await transporter.sendMail({
+      from: `"Splitwise App" <${process.env.EMAIL_USER}>`,
+      to: emails.join(','),
       subject: `💸 New Expense in ${groupName}`,
       html: `
         <div style="font-family:Arial">
@@ -26,7 +33,7 @@ const sendExpenseNotificationEmail = async (
       `
     });
 
-    console.log('✅ Email sent via Resend');
+    console.log('✅ Email sent via Gmail');
   } catch (err) {
     console.error('❌ Email error:', err.message);
   }
