@@ -5,6 +5,7 @@ const Group      = require('../models/Group');
 const Expense    = require('../models/Expense');
 const auth       = require('../middleware/auth');
 const { logActivity } = require('../utils/activityLogger');
+const { getCache, setCache, invalidateGroup, keys, TTL } = require('../utils/cache'); // ✅ ADD
 
 async function validateRelatedExpenses(relatedExpenses, groupId, payerId, payeeId) {
   if (!relatedExpenses || !Array.isArray(relatedExpenses) || relatedExpenses.length === 0) return [];
@@ -14,31 +15,27 @@ async function validateRelatedExpenses(relatedExpenses, groupId, payerId, payeeI
     const expense = await Expense.findById(expenseId);
     if (!expense) {
       const err = new Error(`Related expense ${expenseId} not found`);
-      err.status = 404;
-      throw err;
+      err.status = 404; throw err;
     }
     if (expense.group.toString() !== groupId.toString()) {
       const err = new Error('Related expense must belong to the same group');
-      err.status = 400;
-      throw err;
+      err.status = 400; throw err;
     }
     if (expense.paidBy.toString() !== payeeId.toString()) {
       const err = new Error('Related expense must be paid by the receiver');
-      err.status = 400;
-      throw err;
+      err.status = 400; throw err;
     }
     const payerInSplit = expense.splits.some(split => split.user.toString() === payerId.toString());
     if (!payerInSplit) {
       const err = new Error('Payer must be included in the related expense split');
-      err.status = 400;
-      throw err;
+      err.status = 400; throw err;
     }
     validExpenseIds.push(expense._id);
   }
-
   return validExpenseIds;
 }
 
+// ─── POST /api/settlements ────────────────────────────────────────────────────
 router.post('/', auth, async (req, res) => {
   try {
     const { groupId, paidBy, paidTo, amount, note, relatedExpense, relatedExpenses, isExpenseUpdate } = req.body;
@@ -51,18 +48,15 @@ router.post('/', auth, async (req, res) => {
     const group = await Group.findById(groupId);
     if (!group) return res.status(404).json({ msg: 'Group not found' });
 
-    const payerId = paidBy || req.user.id;
-    const memberIds = group.members.map(member => member.toString());
+    const payerId   = paidBy || req.user.id;
+    const memberIds = group.members.map(m => m.toString());
 
-    if (!memberIds.includes(req.user.id)) {
+    if (!memberIds.includes(req.user.id))
       return res.status(403).json({ msg: 'You are not a member of this group' });
-    }
-    if (!memberIds.includes(payerId) || !memberIds.includes(paidTo)) {
+    if (!memberIds.includes(payerId) || !memberIds.includes(paidTo))
       return res.status(400).json({ msg: 'Both users must be group members' });
-    }
-    if (payerId === paidTo) {
+    if (payerId === paidTo)
       return res.status(400).json({ msg: 'Payer and receiver cannot be same' });
-    }
 
     let expenseIds = [];
     if (relatedExpenses && Array.isArray(relatedExpenses)) {
@@ -72,32 +66,30 @@ router.post('/', auth, async (req, res) => {
     }
 
     const settlement = new Settlement({
-      group: groupId,
-      paidBy: payerId,
-      paidTo,
-      amount: paymentAmount,
-      relatedExpenses: expenseIds,
-      isExpenseUpdate: isExpenseUpdate || false,
-      note
+      group: groupId, paidBy: payerId, paidTo,
+      amount: paymentAmount, relatedExpenses: expenseIds,
+      isExpenseUpdate: isExpenseUpdate || false, note,
     });
     await settlement.save();
 
     const populatedSettlement = await settlement.populate([
-      { path: 'paidBy', select: 'name email' },
-      { path: 'paidTo', select: 'name email' },
-      { path: 'relatedExpenses', select: 'description amount' }
+      { path: 'paidBy',            select: 'name email' },
+      { path: 'paidTo',            select: 'name email' },
+      { path: 'relatedExpenses',   select: 'description amount' },
     ]);
 
     await logActivity({
-      groupId,
-      userId: req.user.id,
+      groupId, userId: req.user.id,
       action: isExpenseUpdate ? 'marked_paid' : 'paid',
       type: 'settlement',
-      description: isExpenseUpdate 
+      description: isExpenseUpdate
         ? `marked a split as paid`
         : `paid ₹${paymentAmount} to ${populatedSettlement.paidTo.name}`,
-      amount: paymentAmount
+      amount: paymentAmount,
     });
+
+    // ✅ Invalidate cache — settlement ne balance change kar diya
+    await invalidateGroup(groupId, req.user.id);
 
     res.status(201).json(populatedSettlement);
   } catch (err) {
@@ -105,28 +97,40 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
+// ─── GET /api/settlements/group/:groupId ──────────────────────────────────────
 router.get('/group/:groupId', auth, async (req, res) => {
   try {
+    const cacheKey = `settlements:group:${req.params.groupId}`; // ✅ Cache key
+
+    // 1️⃣ Try cache
+    const cached = await getCache(cacheKey);
+    if (cached) return res.json(cached);
+
+    // 2️⃣ Cache miss — DB se fetch
     const settlements = await Settlement.find({ group: req.params.groupId })
-      .populate('paidBy', 'name email')
-      .populate('paidTo', 'name email')
-      .populate('relatedExpense', 'description amount')
-      .populate('relatedExpenses', 'description amount')
+      .populate('paidBy',           'name email')
+      .populate('paidTo',           'name email')
+      .populate('relatedExpense',   'description amount')
+      .populate('relatedExpenses',  'description amount')
       .sort({ date: -1 });
+
+    // 3️⃣ Cache karo
+    await setCache(cacheKey, settlements, TTL.SUMMARY); // 3 min TTL
+
     res.json(settlements);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// ─── PUT /api/settlements/:settlementId ───────────────────────────────────────
 router.put('/:settlementId', auth, async (req, res) => {
   try {
     const { amount, note, relatedExpense, relatedExpenses } = req.body;
     const paymentAmount = Number(amount);
 
-    if (!paymentAmount || paymentAmount <= 0) {
+    if (!paymentAmount || paymentAmount <= 0)
       return res.status(400).json({ msg: 'Valid amount is required' });
-    }
 
     const settlement = await Settlement.findById(req.params.settlementId);
     if (!settlement) return res.status(404).json({ msg: 'Payment not found' });
@@ -134,32 +138,25 @@ router.put('/:settlementId', auth, async (req, res) => {
     const group = await Group.findById(settlement.group);
     if (!group) return res.status(404).json({ msg: 'Group not found' });
 
-    const memberIds = group.members.map(member => member.toString());
-    if (!memberIds.includes(req.user.id)) {
+    const memberIds = group.members.map(m => m.toString());
+    if (!memberIds.includes(req.user.id))
       return res.status(403).json({ msg: 'You are not a member of this group' });
-    }
 
     settlement.amount = paymentAmount;
     if (note !== undefined) settlement.note = note;
-    
+
     if (relatedExpenses !== undefined && Array.isArray(relatedExpenses)) {
       settlement.relatedExpenses = await validateRelatedExpenses(
-        relatedExpenses,
-        settlement.group,
-        settlement.paidBy,
-        settlement.paidTo
+        relatedExpenses, settlement.group, settlement.paidBy, settlement.paidTo
       );
       settlement.relatedExpense = undefined;
     } else if (relatedExpense !== undefined) {
       if (relatedExpense === null) {
         settlement.relatedExpenses = [];
-        settlement.relatedExpense = undefined;
+        settlement.relatedExpense  = undefined;
       } else {
         settlement.relatedExpenses = await validateRelatedExpenses(
-          [relatedExpense],
-          settlement.group,
-          settlement.paidBy,
-          settlement.paidTo
+          [relatedExpense], settlement.group, settlement.paidBy, settlement.paidTo
         );
         settlement.relatedExpense = undefined;
       }
@@ -167,19 +164,20 @@ router.put('/:settlementId', auth, async (req, res) => {
     await settlement.save();
 
     const populatedSettlement = await settlement.populate([
-      { path: 'paidBy', select: 'name email' },
-      { path: 'paidTo', select: 'name email' },
-      { path: 'relatedExpenses', select: 'description amount' }
+      { path: 'paidBy',           select: 'name email' },
+      { path: 'paidTo',           select: 'name email' },
+      { path: 'relatedExpenses',  select: 'description amount' },
     ]);
 
     await logActivity({
-      groupId: settlement.group,
-      userId: req.user.id,
-      action: 'updated',
-      type: 'settlement',
+      groupId: settlement.group, userId: req.user.id,
+      action: 'updated', type: 'settlement',
       description: `updated a payment to ₹${paymentAmount}`,
-      amount: paymentAmount
+      amount: paymentAmount,
     });
+
+    // ✅ Invalidate cache
+    await invalidateGroup(settlement.group.toString(), req.user.id);
 
     res.json(populatedSettlement);
   } catch (err) {
@@ -187,6 +185,7 @@ router.put('/:settlementId', auth, async (req, res) => {
   }
 });
 
+// ─── DELETE /api/settlements/:settlementId ────────────────────────────────────
 router.delete('/:settlementId', auth, async (req, res) => {
   try {
     const settlement = await Settlement.findById(req.params.settlementId);
@@ -195,21 +194,21 @@ router.delete('/:settlementId', auth, async (req, res) => {
     const group = await Group.findById(settlement.group);
     if (!group) return res.status(404).json({ msg: 'Group not found' });
 
-    const memberIds = group.members.map(member => member.toString());
-    if (!memberIds.includes(req.user.id)) {
+    const memberIds = group.members.map(m => m.toString());
+    if (!memberIds.includes(req.user.id))
       return res.status(403).json({ msg: 'You are not a member of this group' });
-    }
 
     await Settlement.findByIdAndDelete(req.params.settlementId);
 
     await logActivity({
-      groupId: settlement.group,
-      userId: req.user.id,
-      action: 'deleted',
-      type: 'settlement',
+      groupId: settlement.group, userId: req.user.id,
+      action: 'deleted', type: 'settlement',
       description: `deleted a payment of ₹${settlement.amount}`,
-      amount: settlement.amount
+      amount: settlement.amount,
     });
+
+    // ✅ Invalidate cache
+    await invalidateGroup(settlement.group.toString(), req.user.id);
 
     res.json({ msg: 'Payment deleted' });
   } catch (err) {
