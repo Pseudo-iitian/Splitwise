@@ -65,7 +65,7 @@ app.use('/api/expenses',    require('./routes/expenses'));
 app.use('/api/settlements', require('./routes/settlements'));
 app.use('/api/wishlist',    wishlistRoutes);
 app.use('/api/groups',      require('./routes/groups'));
-app.use('/api/chat',        chatRoutes);
+
 
 // Root route
 app.get('/', (req, res) => {
