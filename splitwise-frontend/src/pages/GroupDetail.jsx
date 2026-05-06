@@ -1419,135 +1419,169 @@ export default function GroupDetail() {
       </div>
     );
   }
-  function SettlementCard({
-    s,
-    item,
-    getSettlementText,
-    openSettlementModal,
-    currentUserId,
-  }) {
-    const [showMore, setShowMore] = React.useState(false);
+function SettlementCard({ s, item, getSettlementText, openSettlementModal, currentUserId }) {
+  const [showMore, setShowMore] = React.useState(false);
 
-    const payerId = s.paidBy?._id || s.paidBy?.id;
-    const payeeId = s.paidTo?._id || s.paidTo?.id;
-    const isCurrentUserPayer = payerId === currentUserId;
-    const isCurrentUserPayee = payeeId === currentUserId;
+  const payerId = s.paidBy?._id || s.paidBy?.id;
+  const isCurrentUserPayer = payerId === currentUserId;
+  const isCurrentUserPayee = (s.paidTo?._id || s.paidTo?.id) === currentUserId;
 
-    const allExpenses =
-      s.relatedExpenses?.length > 0
-        ? s.relatedExpenses
-        : s.relatedExpense
-          ? [s.relatedExpense]
-          : [];
+  const allExpenses = s.relatedExpenses?.length > 0
+    ? s.relatedExpenses
+    : s.relatedExpense
+    ? [s.relatedExpense]
+    : [];
 
-    return (
-      <div className="bg-gray-900 border border-emerald-500/30 hover:border-emerald-400 rounded-2xl p-4 transition">
-        {/* Main row — click karo modal ke liye */}
-        <div
-          className="flex items-center justify-between gap-3 cursor-pointer"
-          onClick={() => openSettlementModal(s)}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-              <FiDollarSign className="text-emerald-400" size={20} />
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-semibold truncate">{getSettlementText(s)}</h3>
-              <p className="text-xs text-gray-500">
-                {item.date.toLocaleDateString("en-IN")}
-              </p>
-              {allExpenses.length > 0 && (
-                <p className="text-xs text-emerald-300 mt-0.5 truncate">
-                  For {allExpenses.map((e) => e.description).join(", ")}
-                </p>
-              )}
-            </div>
+  // ✅ User ka share nikalo — payer ka share = unka split amount
+  const getUserShare = (exp) => {
+    if (!exp.splits) return Number(exp.amount || 0);
+    const payerSplit = exp.splits.find(sp => {
+      const uid = sp.user?._id?.toString() || sp.user?.toString();
+      return uid === payerId;
+    });
+    return payerSplit ? Number(payerSplit.amount) : Number(exp.amount || 0);
+  };
+
+  // ✅ Payee (receiver) ka share — jo receive kar raha hai uska split
+  const getPayeeShare = (exp) => {
+    if (!exp.splits) return 0;
+    const payeeSplit = exp.splits.find(sp => {
+      const uid = sp.user?._id?.toString() || sp.user?.toString();
+      return uid === (s.paidTo?._id || s.paidTo?.id);
+    });
+    return payeeSplit ? Number(payeeSplit.amount) : 0;
+  };
+
+  const payerShareTotal = allExpenses.reduce((sum, e) => sum + getUserShare(e), 0);
+
+  return (
+    <div className="bg-gray-900 border border-emerald-500/30 hover:border-emerald-400 rounded-2xl p-4 transition">
+      {/* Main clickable row */}
+      <div
+        className="flex items-center justify-between gap-3 cursor-pointer"
+        onClick={() => openSettlementModal(s)}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+            <FiDollarSign className="text-emerald-400" size={20} />
           </div>
-          <span className="text-emerald-400 font-bold text-lg shrink-0">
-            ₹{s.amount.toFixed(2)}
-          </span>
+          <div className="min-w-0">
+            <h3 className="font-semibold truncate">{getSettlementText(s)}</h3>
+            <p className="text-xs text-gray-500">{item.date.toLocaleDateString("en-IN")}</p>
+            {allExpenses.length > 0 && (
+              <p className="text-xs text-emerald-300 mt-0.5 truncate">
+                For {allExpenses.map((e) => e.description).join(", ")}
+              </p>
+            )}
+          </div>
         </div>
+        <span className="text-emerald-400 font-bold text-lg shrink-0">
+          ₹{s.amount.toFixed(2)}
+        </span>
+      </div>
 
-        {/* Show more button — sirf tab dikhao jab expenses hain */}
-        {allExpenses.length > 0 && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowMore(!showMore);
-            }}
-            className="mt-2 text-xs text-emerald-400/70 hover:text-emerald-300 underline underline-offset-2 transition flex items-center gap-1"
-          >
-            {showMore ? "▲ Hide details" : "▼ Show more details"}
-          </button>
-        )}
+      {/* Show more button */}
+      {allExpenses.length > 0 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setShowMore(!showMore); }}
+          className="mt-2 text-xs text-emerald-400/70 hover:text-emerald-300 underline underline-offset-2 transition flex items-center gap-1"
+        >
+          {showMore ? "▲ Hide details" : "▼ Show more details"}
+        </button>
+      )}
 
-        {/* Breakdown */}
-        {showMore && allExpenses.length > 0 && (
-          <div className="mt-3 bg-black/20 rounded-xl p-3 space-y-3">
-            {/* Payer info */}
-            <p className="text-xs font-semibold text-emerald-200">
-              📊 {s.paidBy?.name} → {s.paidTo?.name}
+      {/* Breakdown */}
+      {showMore && allExpenses.length > 0 && (() => {
+        const payerOwesTotal = allExpenses.reduce((sum, e) => sum + getUserShare(e), 0);
+        const payeeOwesTotal = allExpenses.reduce((sum, e) => sum + getPayeeShare(e), 0);
+        const alreadyAdjusted = +(payerOwesTotal - s.amount).toFixed(2);
+
+        return (
+          <div className="mt-3 bg-black/20 rounded-xl p-3 space-y-3 text-xs">
+
+            {/* Header */}
+            <p className="font-semibold text-emerald-200 text-sm">
+              📊 {isCurrentUserPayer ? 'You' : s.paidBy?.name} ↔ {isCurrentUserPayee ? 'you' : s.paidTo?.name}
             </p>
 
-            {/* Related expenses list */}
+            {/* Payer owes — what payer had to pay */}
             <div>
-              <p className="text-xs text-gray-400 mb-1">
-                {s.paidBy?.name} paid {s.paidTo?.name} for:
+              <p className="text-red-300/80 mb-1">
+                ➕ {isCurrentUserPayer ? 'You' : s.paidBy?.name} owe{isCurrentUserPayer ? '' : 's'}{' '}
+                {isCurrentUserPayee ? 'you' : s.paidTo?.name} for:
               </p>
               <div className="space-y-1">
                 {allExpenses.map((exp, idx) => (
-                  <div
-                    key={exp._id || idx}
-                    className="flex justify-between text-xs text-gray-300"
-                  >
-                    <span className="truncate max-w-[65%]">
-                      • {exp.description}
-                    </span>
-                    <span className="text-emerald-300 shrink-0">
-                      ₹{Number(exp.amount || 0).toFixed(2)}
-                    </span>
+                  <div key={exp._id || idx} className="flex justify-between text-gray-300">
+                    <span className="truncate max-w-[65%]">• {exp.description}</span>
+                    <span className="text-red-300 shrink-0">₹{getUserShare(exp).toFixed(2)}</span>
                   </div>
                 ))}
+                <div className="flex justify-between font-semibold text-red-300 border-t border-white/10 pt-1 mt-1">
+                  <span>Subtotal</span>
+                  <span>₹{payerOwesTotal.toFixed(2)}</span>
+                </div>
               </div>
             </div>
 
-            {/* Breakdown calculation agar multiple expenses hain */}
-            {allExpenses.length > 1 && (
-              <div className="border-t border-emerald-500/20 pt-2 space-y-1">
-                <div className="flex justify-between text-xs text-gray-400">
-                  <span>Total expenses</span>
-                  <span>
-                    ₹
-                    {allExpenses
-                      .reduce((s, e) => s + Number(e.amount || 0), 0)
-                      .toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs font-bold text-emerald-300">
-                  <span>Amount paid</span>
-                  <span>₹{s.amount.toFixed(2)}</span>
+            {/* Payee owes back — what payee had to pay to payer */}
+            {payeeOwesTotal > 0.009 && (
+              <div>
+                <p className="text-emerald-300/80 mb-1">
+                  ➖ {isCurrentUserPayee ? 'You' : s.paidTo?.name} owe{isCurrentUserPayee ? '' : 's'}{' '}
+                  {isCurrentUserPayer ? 'you' : s.paidBy?.name} for:
+                </p>
+                <div className="space-y-1">
+                  {allExpenses.filter(e => getPayeeShare(e) > 0.009).map((exp, idx) => (
+                    <div key={exp._id || idx} className="flex justify-between text-gray-300">
+                      <span className="truncate max-w-[65%]">• {exp.description}</span>
+                      <span className="text-emerald-300 shrink-0">₹{getPayeeShare(exp).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between font-semibold text-emerald-300 border-t border-white/10 pt-1 mt-1">
+                    <span>Subtotal</span>
+                    <span>₹{payeeOwesTotal.toFixed(2)}</span>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Context for current user */}
-            {(isCurrentUserPayer || isCurrentUserPayee) && (
-              <div className="border-t border-emerald-500/20 pt-2">
-                {isCurrentUserPayer && (
-                  <p className="text-xs text-emerald-300/80">
-                    ✅ You paid ₹{s.amount.toFixed(2)} to {s.paidTo?.name}
-                  </p>
-                )}
-                {isCurrentUserPayee && (
-                  <p className="text-xs text-emerald-300/80">
-                    ✅ {s.paidBy?.name} paid you ₹{s.amount.toFixed(2)}
-                  </p>
-                )}
+            {/* Final calculation box */}
+            <div className="bg-black/30 rounded-lg px-3 py-2 space-y-1">
+              <div className="flex justify-between text-gray-400">
+                <span>{isCurrentUserPayer ? 'You' : s.paidBy?.name} owe{isCurrentUserPayer ? '' : 's'}</span>
+                <span className="text-red-300">₹{payerOwesTotal.toFixed(2)}</span>
               </div>
-            )}
+              {payeeOwesTotal > 0.009 && (
+                <div className="flex justify-between text-gray-400">
+                  <span>{isCurrentUserPayee ? 'You' : s.paidTo?.name} owe{isCurrentUserPayee ? '' : 's'} back</span>
+                  <span className="text-emerald-300">- ₹{payeeOwesTotal.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="border-t border-white/10 pt-1" />
+              <div className="flex justify-between font-bold text-emerald-300">
+                <span>Net amount paid</span>
+                <span>₹{s.amount.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Context */}
+            <div className="border-t border-white/10 pt-2">
+              {isCurrentUserPayer && (
+                <p className="text-emerald-300/80">✅ You paid ₹{s.amount.toFixed(2)} to {s.paidTo?.name}</p>
+              )}
+              {isCurrentUserPayee && (
+                <p className="text-emerald-300/80">✅ {s.paidBy?.name} paid you ₹{s.amount.toFixed(2)}</p>
+              )}
+              {!isCurrentUserPayer && !isCurrentUserPayee && (
+                <p className="text-gray-400">ℹ️ {s.paidBy?.name} paid {s.paidTo?.name} ₹{s.amount.toFixed(2)}</p>
+              )}
+            </div>
+
           </div>
-        )}
-      </div>
-    );
-  }
+        );
+      })()}
+    </div>
+  );
+}
 }
