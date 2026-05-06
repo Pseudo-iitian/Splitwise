@@ -408,12 +408,7 @@ const groupedMessages = (Array.isArray(chatMessages) ? chatMessages : []).reduce
                 </div>
                 <div className="min-w-0 w-full">
                   {userDebts.length > 0 ? (
-                    <>
-                      <p className="font-semibold text-amber-100">You owe ₹{totalUserDebt.toFixed(2)} overall</p>
-                      {userDebts.map(d => (
-                        <p key={d.id} className="text-sm text-amber-50/90 mt-1">You owe {d.name || "Someone"} ₹{Number(d.amount || 0).toFixed(2)}</p>
-                      ))}
-                    </>
+                     <DebtBreakdown userDebts={userDebts} totalUserDebt={totalUserDebt} />
                   ) : (
                     <>
                       <p className="font-semibold text-amber-100">You are all settled up</p>
@@ -824,4 +819,81 @@ const groupedMessages = (Array.isArray(chatMessages) ? chatMessages : []).reduce
       )}
     </div>
   );
+  function DebtBreakdown({ userDebts, totalUserDebt }) {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <div className="w-full">
+      {/* Header */}
+      <p className="font-semibold text-amber-100">
+        You owe ₹{totalUserDebt.toFixed(2)} overall
+      </p>
+
+      {/* Per-person summary */}
+      <div className="mt-1 space-y-0.5">
+        {userDebts.map(d => (
+          <p key={d.id} className="text-sm text-amber-50/90">
+            You owe {d.name} ₹{Number(d.amount).toFixed(2)}
+          </p>
+        ))}
+      </div>
+
+      {/* Show breakdown toggle */}
+      <button
+        onClick={() => setOpen(!open)}
+        className="mt-3 text-xs text-amber-300 hover:text-amber-200 underline underline-offset-2 transition flex items-center gap-1"
+      >
+        {open ? '▲ Hide breakdown' : '▼ Show how this was calculated'}
+      </button>
+
+      {/* Breakdown detail */}
+      {open && (
+        <div className="mt-3 space-y-4">
+          {userDebts.map(d => (
+            <div key={d.id} className="bg-black/20 rounded-xl p-3">
+
+              {/* Person header */}
+              <p className="text-sm font-semibold text-amber-200 mb-2">
+                📊 You → {d.name}
+              </p>
+
+              {/* What you owe them */}
+              {d.expenses?.length > 0 && (
+                <div className="mb-2">
+                  <p className="text-xs text-amber-100/60 mb-1">
+                    You owe {d.name} for:
+                  </p>
+                  <div className="space-y-1">
+                    {d.expenses.map(exp => (
+                      <div key={exp.id} className="flex justify-between text-xs text-amber-50/80">
+                        <span className="truncate max-w-[65%]">• {exp.description}</span>
+                        <span className="text-red-300 shrink-0">₹{Number(exp.remainingAmount).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-xs font-semibold text-red-300 border-t border-amber-500/20 pt-1 mt-1">
+                      <span>Subtotal you owe</span>
+                      <span>₹{d.expenses.reduce((s, e) => s + e.remainingAmount, 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Final net */}
+              <div className="flex justify-between text-xs font-bold text-amber-300 border-t border-amber-500/30 pt-2 mt-1">
+                <span>Net you owe {d.name}</span>
+                <span>₹{Number(d.amount).toFixed(2)}</span>
+              </div>
+            </div>
+          ))}
+
+          {/* Total */}
+          <div className="flex justify-between text-sm font-bold text-amber-200 border-t border-amber-500/40 pt-2">
+            <span>Total you owe</span>
+            <span>₹{totalUserDebt.toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 }
