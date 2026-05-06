@@ -100,22 +100,19 @@ router.post('/', auth, async (req, res) => {
 // ─── GET /api/settlements/group/:groupId ──────────────────────────────────────
 router.get('/group/:groupId', auth, async (req, res) => {
   try {
-    const cacheKey = `settlements:group:${req.params.groupId}`; // ✅ Cache key
+    const cacheKey = `settlements:group:${req.params.groupId}`;
 
-    // 1️⃣ Try cache
     const cached = await getCache(cacheKey);
     if (cached) return res.json(cached);
 
-    // 2️⃣ Cache miss — DB se fetch
     const settlements = await Settlement.find({ group: req.params.groupId })
-      .populate('paidBy',           'name email')
-      .populate('paidTo',           'name email')
-      .populate('relatedExpense',   'description amount')
-      .populate('relatedExpenses',  'description amount')
+      .populate('paidBy',          'name email')
+      .populate('paidTo',          'name email')
+      .populate('relatedExpense',  'description amount splits paidBy')  // ✅ splits add
+      .populate('relatedExpenses', 'description amount splits paidBy')  // ✅ splits add
       .sort({ date: -1 });
 
-    // 3️⃣ Cache karo
-    await setCache(cacheKey, settlements, TTL.SUMMARY); // 3 min TTL
+    await setCache(cacheKey, settlements, TTL.SUMMARY);
 
     res.json(settlements);
   } catch (err) {

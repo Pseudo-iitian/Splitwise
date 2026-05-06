@@ -154,11 +154,13 @@ async function calculateUserDebts(groupId, userId) {
     .populate('paidBy', 'name email')
     .populate('paidByMultiple.user', 'name email')
     .populate('splits.user', 'name email');
+    
   const settlements = await Settlement.find({ group: groupId })
-    .populate('paidBy', 'name email')
-    .populate('paidTo', 'name email')
-    .populate('relatedExpense', 'description amount')
-    .populate('relatedExpenses', 'description amount');
+  .populate('paidBy', 'name email')
+  .populate('paidTo', 'name email')
+  .populate('relatedExpense',  'description amount splits paidBy')  // ✅
+  .populate('relatedExpenses', 'description amount splits paidBy')  // ✅
+  .sort({ date: -1 });
 
   const debts = {};
   const linkedPayments = {};
