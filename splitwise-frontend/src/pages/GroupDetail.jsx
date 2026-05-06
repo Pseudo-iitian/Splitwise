@@ -571,6 +571,7 @@ export default function GroupDetail() {
                       getSettlementText={getSettlementText}
                       openSettlementModal={openSettlementModal}
                       currentUserId={user?.id}
+                      userDebts={userDebts}
                     />
                   );
                 }
@@ -1419,169 +1420,215 @@ export default function GroupDetail() {
       </div>
     );
   }
-function SettlementCard({ s, item, getSettlementText, openSettlementModal, currentUserId }) {
-  const [showMore, setShowMore] = React.useState(false);
+  function SettlementCard({
+    s,
+    item,
+    getSettlementText,
+    openSettlementModal,
+    currentUserId,
+    userDebts,
+  }) {
+    const [showMore, setShowMore] = React.useState(false);
 
-  const payerId = s.paidBy?._id || s.paidBy?.id;
-  const isCurrentUserPayer = payerId === currentUserId;
-  const isCurrentUserPayee = (s.paidTo?._id || s.paidTo?.id) === currentUserId;
+    const payerId = s.paidBy?._id || s.paidBy?.id;
+    const payeeId = s.paidTo?._id || s.paidTo?.id;
+    const isCurrentUserPayer = payerId === currentUserId;
+    const isCurrentUserPayee = payeeId === currentUserId;
 
-  const allExpenses = s.relatedExpenses?.length > 0
-    ? s.relatedExpenses
-    : s.relatedExpense
-    ? [s.relatedExpense]
-    : [];
+    const allExpenses =
+      s.relatedExpenses?.length > 0
+        ? s.relatedExpenses
+        : s.relatedExpense
+          ? [s.relatedExpense]
+          : [];
 
-  // ✅ User ka share nikalo — payer ka share = unka split amount
-  const getUserShare = (exp) => {
-    if (!exp.splits) return Number(exp.amount || 0);
-    const payerSplit = exp.splits.find(sp => {
-      const uid = sp.user?._id?.toString() || sp.user?.toString();
-      return uid === payerId;
-    });
-    return payerSplit ? Number(payerSplit.amount) : Number(exp.amount || 0);
-  };
+    // ✅ splits se current user ka share nikalo
+    const getUserShare = (exp) => {
+      if (!exp.splits?.length) return Number(exp.amount || 0);
+      const split = exp.splits.find((sp) => {
+        const uid = sp.user?._id?.toString() || sp.user?.toString();
+        return uid === (isCurrentUserPayer ? currentUserId : payerId);
+      });
+      return split ? Number(split.amount) : Number(exp.amount || 0);
+    };
 
-  // ✅ Payee (receiver) ka share — jo receive kar raha hai uska split
-  const getPayeeShare = (exp) => {
-    if (!exp.splits) return 0;
-    const payeeSplit = exp.splits.find(sp => {
-      const uid = sp.user?._id?.toString() || sp.user?.toString();
-      return uid === (s.paidTo?._id || s.paidTo?.id);
-    });
-    return payeeSplit ? Number(payeeSplit.amount) : 0;
-  };
+    // ✅ userDebts se "Sahil ne mujhe diya" wala data nikalo
+    const otherPersonId = isCurrentUserPayer ? payeeId : payerId;
+    const debtEntry = (userDebts || []).find((d) => d.id === otherPersonId);
+    const creditsFromThem = debtEntry?.creditsFromThem || [];
 
-  const payerShareTotal = allExpenses.reduce((sum, e) => sum + getUserShare(e), 0);
+    const youOweTotal = allExpenses.reduce(
+      (sum, e) => sum + getUserShare(e),
+      0,
+    );
+    const theyOweTotal = creditsFromThem.reduce(
+      (sum, e) => sum + Number(e.theirShare || 0),
+      0,
+    );
 
-  return (
-    <div className="bg-gray-900 border border-emerald-500/30 hover:border-emerald-400 rounded-2xl p-4 transition">
-      {/* Main clickable row */}
-      <div
-        className="flex items-center justify-between gap-3 cursor-pointer"
-        onClick={() => openSettlementModal(s)}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
-            <FiDollarSign className="text-emerald-400" size={20} />
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-semibold truncate">{getSettlementText(s)}</h3>
-            <p className="text-xs text-gray-500">{item.date.toLocaleDateString("en-IN")}</p>
-            {allExpenses.length > 0 && (
-              <p className="text-xs text-emerald-300 mt-0.5 truncate">
-                For {allExpenses.map((e) => e.description).join(", ")}
-              </p>
-            )}
-          </div>
-        </div>
-        <span className="text-emerald-400 font-bold text-lg shrink-0">
-          ₹{s.amount.toFixed(2)}
-        </span>
-      </div>
-
-      {/* Show more button */}
-      {allExpenses.length > 0 && (
-        <button
-          onClick={(e) => { e.stopPropagation(); setShowMore(!showMore); }}
-          className="mt-2 text-xs text-emerald-400/70 hover:text-emerald-300 underline underline-offset-2 transition flex items-center gap-1"
+    return (
+      <div className="bg-gray-900 border border-emerald-500/30 hover:border-emerald-400 rounded-2xl p-4 transition">
+        {/* ── Main row ── */}
+        <div
+          className="flex items-center justify-between gap-3 cursor-pointer"
+          onClick={() => openSettlementModal(s)}
         >
-          {showMore ? "▲ Hide details" : "▼ Show more details"}
-        </button>
-      )}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+              <FiDollarSign className="text-emerald-400" size={20} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="font-semibold truncate">{getSettlementText(s)}</h3>
+              <p className="text-xs text-gray-500">
+                {item.date.toLocaleDateString("en-IN")}
+              </p>
+              {allExpenses.length > 0 && (
+                <p className="text-xs text-emerald-300 mt-0.5 truncate">
+                  For {allExpenses.map((e) => e.description).join(", ")}
+                </p>
+              )}
+            </div>
+          </div>
+          <span className="text-emerald-400 font-bold text-lg shrink-0">
+            ₹{s.amount.toFixed(2)}
+          </span>
+        </div>
 
-      {/* Breakdown */}
-      {showMore && allExpenses.length > 0 && (() => {
-        const payerOwesTotal = allExpenses.reduce((sum, e) => sum + getUserShare(e), 0);
-        const payeeOwesTotal = allExpenses.reduce((sum, e) => sum + getPayeeShare(e), 0);
-        const alreadyAdjusted = +(payerOwesTotal - s.amount).toFixed(2);
+        {/* ── Show more button ── */}
+        {(allExpenses.length > 0 || creditsFromThem.length > 0) && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowMore(!showMore);
+            }}
+            className="mt-2 text-xs text-emerald-400/70 hover:text-emerald-300 underline underline-offset-2 transition"
+          >
+            {showMore ? "▲ Hide details" : "▼ Show more details"}
+          </button>
+        )}
 
-        return (
+        {/* ── Full Breakdown ── */}
+        {showMore && (
           <div className="mt-3 bg-black/20 rounded-xl p-3 space-y-3 text-xs">
-
             {/* Header */}
             <p className="font-semibold text-emerald-200 text-sm">
-              📊 {isCurrentUserPayer ? 'You' : s.paidBy?.name} ↔ {isCurrentUserPayee ? 'you' : s.paidTo?.name}
+              📊 {isCurrentUserPayer ? "You" : s.paidBy?.name} ↔{" "}
+              {isCurrentUserPayee ? "you" : s.paidTo?.name}
             </p>
 
-            {/* Payer owes — what payer had to pay */}
-            <div>
-              <p className="text-red-300/80 mb-1">
-                ➕ {isCurrentUserPayer ? 'You' : s.paidBy?.name} owe{isCurrentUserPayer ? '' : 's'}{' '}
-                {isCurrentUserPayee ? 'you' : s.paidTo?.name} for:
-              </p>
-              <div className="space-y-1">
-                {allExpenses.map((exp, idx) => (
-                  <div key={exp._id || idx} className="flex justify-between text-gray-300">
-                    <span className="truncate max-w-[65%]">• {exp.description}</span>
-                    <span className="text-red-300 shrink-0">₹{getUserShare(exp).toFixed(2)}</span>
+            {/* ➕ You owe them */}
+            {allExpenses.length > 0 && (
+              <div>
+                <p className="text-red-300/80 mb-1 font-medium">
+                  ➕ {isCurrentUserPayer ? "You owe" : `${s.paidBy?.name} owes`}{" "}
+                  {isCurrentUserPayee ? "you" : s.paidTo?.name} for:
+                </p>
+                <div className="space-y-1 pl-1">
+                  {allExpenses.map((exp, idx) => (
+                    <div
+                      key={exp._id || idx}
+                      className="flex justify-between text-gray-300"
+                    >
+                      <span className="truncate max-w-[65%]">
+                        • {exp.description}
+                      </span>
+                      <span className="text-red-300 shrink-0">
+                        ₹{getUserShare(exp).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between font-semibold text-red-300 border-t border-white/10 pt-1 mt-1">
+                    <span>Subtotal</span>
+                    <span>₹{youOweTotal.toFixed(2)}</span>
                   </div>
-                ))}
-                <div className="flex justify-between font-semibold text-red-300 border-t border-white/10 pt-1 mt-1">
-                  <span>Subtotal</span>
-                  <span>₹{payerOwesTotal.toFixed(2)}</span>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Payee owes back — what payee had to pay to payer */}
-            {payeeOwesTotal > 0.009 && (
+            {/* ➖ They owe you (creditsFromThem) */}
+            {creditsFromThem.length > 0 && (
               <div>
-                <p className="text-emerald-300/80 mb-1">
-                  ➖ {isCurrentUserPayee ? 'You' : s.paidTo?.name} owe{isCurrentUserPayee ? '' : 's'}{' '}
-                  {isCurrentUserPayer ? 'you' : s.paidBy?.name} for:
+                <p className="text-emerald-300/80 mb-1 font-medium">
+                  ➖ {isCurrentUserPayee ? "You owe" : `${s.paidTo?.name} owes`}{" "}
+                  {isCurrentUserPayer ? "you" : s.paidBy?.name} for:
                 </p>
-                <div className="space-y-1">
-                  {allExpenses.filter(e => getPayeeShare(e) > 0.009).map((exp, idx) => (
-                    <div key={exp._id || idx} className="flex justify-between text-gray-300">
-                      <span className="truncate max-w-[65%]">• {exp.description}</span>
-                      <span className="text-emerald-300 shrink-0">₹{getPayeeShare(exp).toFixed(2)}</span>
+                <div className="space-y-1 pl-1">
+                  {creditsFromThem.map((exp, idx) => (
+                    <div
+                      key={exp.id || idx}
+                      className="flex justify-between text-gray-300"
+                    >
+                      <span className="truncate max-w-[65%]">
+                        • {exp.description}
+                      </span>
+                      <span className="text-emerald-300 shrink-0">
+                        ₹{Number(exp.theirShare).toFixed(2)}
+                      </span>
                     </div>
                   ))}
                   <div className="flex justify-between font-semibold text-emerald-300 border-t border-white/10 pt-1 mt-1">
                     <span>Subtotal</span>
-                    <span>₹{payeeOwesTotal.toFixed(2)}</span>
+                    <span>₹{theyOweTotal.toFixed(2)}</span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Final calculation box */}
+            {/* ── Final calculation ── */}
             <div className="bg-black/30 rounded-lg px-3 py-2 space-y-1">
-              <div className="flex justify-between text-gray-400">
-                <span>{isCurrentUserPayer ? 'You' : s.paidBy?.name} owe{isCurrentUserPayer ? '' : 's'}</span>
-                <span className="text-red-300">₹{payerOwesTotal.toFixed(2)}</span>
-              </div>
-              {payeeOwesTotal > 0.009 && (
+              {allExpenses.length > 0 && (
                 <div className="flex justify-between text-gray-400">
-                  <span>{isCurrentUserPayee ? 'You' : s.paidTo?.name} owe{isCurrentUserPayee ? '' : 's'} back</span>
-                  <span className="text-emerald-300">- ₹{payeeOwesTotal.toFixed(2)}</span>
+                  <span>
+                    {isCurrentUserPayer ? "You owe" : `${s.paidBy?.name} owes`}{" "}
+                    {isCurrentUserPayee ? "you" : s.paidTo?.name}
+                  </span>
+                  <span className="text-red-300">
+                    ₹{youOweTotal.toFixed(2)}
+                  </span>
+                </div>
+              )}
+              {creditsFromThem.length > 0 && (
+                <div className="flex justify-between text-gray-400">
+                  <span>
+                    {isCurrentUserPayee ? "You" : s.paidTo?.name} owe
+                    {isCurrentUserPayee ? "" : "s"} back
+                  </span>
+                  <span className="text-emerald-300">
+                    - ₹{theyOweTotal.toFixed(2)}
+                  </span>
                 </div>
               )}
               <div className="border-t border-white/10 pt-1" />
               <div className="flex justify-between font-bold text-emerald-300">
-                <span>Net amount paid</span>
+                <span>
+                  Net {isCurrentUserPayer ? "you owe" : "amount paid"}
+                </span>
                 <span>₹{s.amount.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* Context */}
+            {/* ── Context line ── */}
             <div className="border-t border-white/10 pt-2">
               {isCurrentUserPayer && (
-                <p className="text-emerald-300/80">✅ You paid ₹{s.amount.toFixed(2)} to {s.paidTo?.name}</p>
+                <p className="text-emerald-300/80">
+                  ✅ You paid ₹{s.amount.toFixed(2)} to {s.paidTo?.name}
+                </p>
               )}
               {isCurrentUserPayee && (
-                <p className="text-emerald-300/80">✅ {s.paidBy?.name} paid you ₹{s.amount.toFixed(2)}</p>
+                <p className="text-emerald-300/80">
+                  ✅ {s.paidBy?.name} paid you ₹{s.amount.toFixed(2)}
+                </p>
               )}
               {!isCurrentUserPayer && !isCurrentUserPayee && (
-                <p className="text-gray-400">ℹ️ {s.paidBy?.name} paid {s.paidTo?.name} ₹{s.amount.toFixed(2)}</p>
+                <p className="text-gray-400">
+                  ℹ️ {s.paidBy?.name} paid {s.paidTo?.name} ₹
+                  {s.amount.toFixed(2)}
+                </p>
               )}
             </div>
-
           </div>
-        );
-      })()}
-    </div>
-  );
-}
+        )}
+      </div>
+    );
+  }
 }
