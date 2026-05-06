@@ -139,7 +139,7 @@ router.get('/:groupId/detailed-balances', auth, async (req, res) => {
 // ─── GET /api/groups/:groupId/settlement-summary ─────────────────────────────
 router.get('/:groupId/settlement-summary', auth, async (req, res) => {
   try {
-    const cacheKey = keys.summary(req.params.groupId);
+    const cacheKey = keys.summary(req.params.groupId, req.user.id);
 
     // 1️⃣ Try cache
     const cached = await getCache(cacheKey);
