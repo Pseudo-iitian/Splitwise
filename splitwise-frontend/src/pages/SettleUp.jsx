@@ -1,31 +1,31 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { getSettlementSummary, settleUp } from '../services/api';
-import toast, { Toaster } from 'react-hot-toast';
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { getSettlementSummary, settleUp } from "../services/api";
+import toast, { Toaster } from "react-hot-toast";
 import {
   FiArrowLeft,
   FiArrowRight,
   FiCheck,
   FiCheckCircle,
-  FiMoreHorizontal
-} from 'react-icons/fi';
+  FiMoreHorizontal,
+} from "react-icons/fi";
 
 export default function SettleUp() {
   const { groupId } = useParams();
   const navigate = useNavigate();
-  const { user } = useSelector(state => state.auth);
+  const { user } = useSelector((state) => state.auth);
 
   const [summary, setSummary] = useState({
     members: [],
     suggestions: [],
     userDebts: [],
-    settlements: []
+    settlements: [],
   });
-  const [step, setStep] = useState('overview');
+  const [step, setStep] = useState("overview");
   const [paidBy, setPaidBy] = useState(null);
   const [paidTo, setPaidTo] = useState(null);
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState("");
   const [selectedExpenseIds, setSelectedExpenseIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -41,10 +41,10 @@ export default function SettleUp() {
         members: res.data.members || [],
         suggestions: res.data.suggestions || [],
         userDebts: res.data.userDebts || [],
-        settlements: res.data.settlements || []
+        settlements: res.data.settlements || [],
       });
     } catch {
-      toast.error('Failed to load balances');
+      toast.error("Failed to load balances");
     } finally {
       setFetching(false);
     }
@@ -53,31 +53,31 @@ export default function SettleUp() {
   const resetForm = () => {
     setPaidBy(null);
     setPaidTo(null);
-    setAmount('');
+    setAmount("");
     setSelectedExpenseIds([]);
-    setStep('overview');
+    setStep("overview");
   };
 
   const chooseDebt = (debt) => {
     setPaidBy({
       id: user.id,
       name: user.name,
-      email: user.email
+      email: user.email,
     });
     setPaidTo(debt);
     setAmount(debt.amount.toFixed(2));
     setSelectedExpenseIds([]);
-    setStep('amount');
+    setStep("amount");
   };
 
   const handleSettle = async () => {
     const paymentAmount = parseFloat(amount);
     if (!paidBy || !paidTo) {
-      toast.error('Choose who is paying whom');
+      toast.error("Choose who is paying whom");
       return;
     }
     if (!paymentAmount || paymentAmount <= 0) {
-      toast.error('Enter a valid amount');
+      toast.error("Enter a valid amount");
       return;
     }
 
@@ -88,42 +88,53 @@ export default function SettleUp() {
         paidBy: paidBy.id,
         paidTo: paidTo.id,
         amount: paymentAmount,
-        relatedExpenses: selectedExpenseIds.length > 0 ? selectedExpenseIds : undefined,
-        note: `${paidBy.name} paid ${paidTo.name}`
+        relatedExpenses:
+          selectedExpenseIds.length > 0 ? selectedExpenseIds : undefined,
+        note: `${paidBy.name} paid ${paidTo.name}`,
       });
-      toast.success('Payment recorded!');
+      toast.success("Payment recorded!");
       await fetchSummary();
       resetForm();
     } catch (err) {
-      toast.error(err.response?.data?.msg || 'Failed to record payment');
+      toast.error(err.response?.data?.msg || "Failed to record payment");
     } finally {
       setLoading(false);
     }
   };
 
-  const getInitial = (name) => name?.[0]?.toUpperCase() || '?';
-  const avatarColors = ['bg-red-500', 'bg-blue-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'];
-  const getColor = (name = '') => avatarColors[(name.charCodeAt(0) || 0) % avatarColors.length];
-  const sortedMembers = [...summary.members].sort((a, b) => a.amount - b.amount);
-  const myBalance = summary.members.find(member => member.id === user?.id);
+  const getInitial = (name) => name?.[0]?.toUpperCase() || "?";
+  const avatarColors = [
+    "bg-red-500",
+    "bg-blue-500",
+    "bg-purple-500",
+    "bg-orange-500",
+    "bg-pink-500",
+    "bg-teal-500",
+  ];
+  const getColor = (name = "") =>
+    avatarColors[(name.charCodeAt(0) || 0) % avatarColors.length];
+  const sortedMembers = [...summary.members].sort(
+    (a, b) => a.amount - b.amount,
+  );
+  const myBalance = summary.members.find((member) => member.id === user?.id);
 
   const goBack = () => {
-    if (step === 'overview') navigate('/group/' + groupId);
-    else if (step === 'receiver') setStep('payer');
-    else if (step === 'amount') setStep('receiver');
-    else if (step === 'confirm') setStep('overview');
-    else setStep('overview');
+    if (step === "overview") navigate("/group/" + groupId);
+    else if (step === "receiver") setStep("payer");
+    else if (step === "amount") setStep("receiver");
+    else if (step === "confirm") setStep("overview");
+    else setStep("overview");
   };
 
   const selectReceiver = (member) => {
     setPaidTo(member);
     const suggestedAmount = Math.min(
       Math.abs(paidBy?.amount || 0),
-      Math.max(member.amount || 0, 0)
+      Math.max(member.amount || 0, 0),
     );
-    setAmount(suggestedAmount > 0 ? suggestedAmount.toFixed(2) : '');
+    setAmount(suggestedAmount > 0 ? suggestedAmount.toFixed(2) : "");
     setSelectedExpenseIds([]);
-    setStep('amount');
+    setStep("amount");
   };
 
   if (fetching) {
@@ -139,46 +150,64 @@ export default function SettleUp() {
       <Toaster />
 
       <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-4 flex items-center gap-4">
-        <button onClick={goBack} className="text-gray-400 hover:text-white transition shrink-0">
+        <button
+          onClick={goBack}
+          className="text-gray-400 hover:text-white transition shrink-0"
+        >
           <FiArrowLeft size={20} />
         </button>
         <h1 className="font-bold text-lg truncate">
-          {step === 'overview' && 'Settle up'}
-          {step === 'payer' && 'Who is paying?'}
-          {step === 'receiver' && 'Who is getting paid?'}
-          {step === 'amount' && 'Record a payment'}
-          {step === 'confirm' && 'Confirm payment'}
+          {step === "overview" && "Settle up"}
+          {step === "payer" && "Who is paying?"}
+          {step === "receiver" && "Who is getting paid?"}
+          {step === "amount" && "Record a payment"}
+          {step === "confirm" && "Confirm payment"}
         </h1>
       </div>
 
-      {step === 'overview' && (
+      {step === "overview" && (
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
           {summary.userDebts.length === 0 ? (
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-8 text-center">
-              <FiCheckCircle className="mx-auto mb-3 text-emerald-400" size={32} />
-              <p className="text-lg font-semibold">{user?.name || 'You'} is settled up</p>
-              <p className="text-sm text-gray-500 mt-1">No payment is pending from your side.</p>
+              <FiCheckCircle
+                className="mx-auto mb-3 text-emerald-400"
+                size={32}
+              />
+              <p className="text-lg font-semibold">
+                {user?.name || "You"} is settled up
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                No payment is pending from your side.
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {summary.userDebts.map(debt => (
+              {summary.userDebts.map((debt) => (
                 <button
                   key={debt.id}
                   onClick={() => chooseDebt(debt)}
                   className="w-full bg-gray-900 border border-gray-800 hover:border-emerald-500 rounded-2xl p-4 transition text-left flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                 >
                   <div className="flex items-center gap-3 min-w-0 w-full">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${getColor(debt.name)}`}>
+                    <div
+                      className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${getColor(debt.name)}`}
+                    >
                       {getInitial(debt.name)}
                     </div>
                     <div className="min-w-0">
                       <p className="font-medium truncate">{debt.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{debt.email}</p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {debt.email}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right shrink-0 self-end sm:self-auto">
-                    <p className="text-xs text-red-300 uppercase tracking-wide">you owe</p>
-                    <p className="text-red-400 font-bold text-lg">₹{debt.amount.toFixed(2)}</p>
+                    <p className="text-xs text-red-300 uppercase tracking-wide">
+                      you owe
+                    </p>
+                    <p className="text-red-400 font-bold text-lg">
+                      ₹{debt.amount.toFixed(2)}
+                    </p>
                   </div>
                 </button>
               ))}
@@ -196,15 +225,19 @@ export default function SettleUp() {
                   <FiCheck size={13} /> settled up
                 </span>
               ) : myBalance.amount < 0 ? (
-                <span className="text-red-400 font-semibold self-end sm:self-auto">borrowes ₹{Math.abs(myBalance.amount).toFixed(2)}</span>
+                <span className="text-red-400 font-semibold self-end sm:self-auto">
+                  borrowes ₹{Math.abs(myBalance.amount).toFixed(2)}
+                </span>
               ) : (
-                <span className="text-emerald-400 font-semibold self-end sm:self-auto">gets ₹{myBalance.amount.toFixed(2)}</span>
+                <span className="text-emerald-400 font-semibold self-end sm:self-auto">
+                  gets ₹{myBalance.amount.toFixed(2)}
+                </span>
               )}
             </div>
           )}
 
           <button
-            onClick={() => setStep('payer')}
+            onClick={() => setStep("payer")}
             className="w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-semibold transition"
           >
             <FiMoreHorizontal /> More options
@@ -212,7 +245,7 @@ export default function SettleUp() {
         </div>
       )}
 
-      {step === 'payer' && (
+      {step === "payer" && (
         <MemberList
           members={sortedMembers}
           userId={user?.id}
@@ -220,12 +253,12 @@ export default function SettleUp() {
           getInitial={getInitial}
           onSelect={(member) => {
             setPaidBy(member);
-            setStep('receiver');
+            setStep("receiver");
           }}
         />
       )}
 
-      {step === 'receiver' && (
+      {step === "receiver" && (
         <MemberList
           members={summary.members}
           userId={user?.id}
@@ -236,45 +269,50 @@ export default function SettleUp() {
         />
       )}
 
-      {step === 'amount' && (
+      {step === "amount" && (
         <div className="max-w-lg mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          <PaymentPreview paidBy={paidBy} paidTo={paidTo} getColor={getColor} getInitial={getInitial} />
+          <PaymentPreview
+            paidBy={paidBy}
+            paidTo={paidTo}
+            getColor={getColor}
+            getInitial={getInitial}
+          />
           {paidTo?.expenses?.length > 0 && (
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Related expenses
               </label>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                {paidTo.expenses.map(expense => {
+                {paidTo.expenses.map((expense) => {
                   const isSelected = selectedExpenseIds.includes(expense.id);
                   return (
-                    <label key={expense.id} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-gray-700 bg-gray-900 hover:bg-gray-800'}`}>
+                    <label
+                      key={expense.id}
+                      className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition ${isSelected ? "border-emerald-500 bg-emerald-500/10" : "border-gray-700 bg-gray-900 hover:bg-gray-800"}`}
+                    >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            const newIds = [...selectedExpenseIds, expense.id];
-                            setSelectedExpenseIds(newIds);
-                            // Auto update amount based on selected expenses
-                            const newAmount = paidTo.expenses
-                                .filter(exp => newIds.includes(exp.id))
-                                .reduce((sum, exp) => sum + exp.remainingAmount, 0);
-                            if (newAmount > 0) setAmount(newAmount.toFixed(2));
+                            setSelectedExpenseIds([
+                              ...selectedExpenseIds,
+                              expense.id,
+                            ]);
                           } else {
-                            const newIds = selectedExpenseIds.filter(id => id !== expense.id);
-                            setSelectedExpenseIds(newIds);
-                            if (newIds.length > 0) {
-                              const newAmount = paidTo.expenses
-                                  .filter(exp => newIds.includes(exp.id))
-                                  .reduce((sum, exp) => sum + exp.remainingAmount, 0);
-                              setAmount(newAmount.toFixed(2));
-                            }
+                            setSelectedExpenseIds(
+                              selectedExpenseIds.filter(
+                                (id) => id !== expense.id,
+                              ),
+                            );
                           }
                         }}
                         className="w-4 h-4 rounded border-gray-600 text-emerald-500 focus:ring-emerald-500 bg-gray-700"
                       />
-                      <span className="text-sm font-medium">{expense.description} - ₹{expense.remainingAmount.toFixed(2)}</span>
+                      <span className="text-sm font-medium">
+                        {expense.description} - ₹
+                        {expense.remainingAmount.toFixed(2)}
+                      </span>
                     </label>
                   );
                 })}
@@ -282,19 +320,21 @@ export default function SettleUp() {
             </div>
           )}
           <div className="flex items-center justify-center gap-3 mb-8">
-            <div className="w-12 h-12 border border-gray-600 rounded-xl flex items-center justify-center text-xl">₹</div>
+            <div className="w-12 h-12 border border-gray-600 rounded-xl flex items-center justify-center text-xl">
+              ₹
+            </div>
             <input
               type="number"
               min="1"
               value={amount}
-              onChange={e => setAmount(e.target.value)}
+              onChange={(e) => setAmount(e.target.value)}
               className="text-3xl sm:text-4xl font-bold bg-transparent text-white border-b-2 border-emerald-500 outline-none w-36 sm:w-44 text-center"
               placeholder="0.00"
               autoFocus
             />
           </div>
           <button
-            onClick={() => setStep('confirm')}
+            onClick={() => setStep("confirm")}
             disabled={!amount || parseFloat(amount) <= 0}
             className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg"
           >
@@ -303,27 +343,41 @@ export default function SettleUp() {
         </div>
       )}
 
-      {step === 'confirm' && (
+      {step === "confirm" && (
         <div className="max-w-lg mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          <PaymentPreview paidBy={paidBy} paidTo={paidTo} getColor={getColor} getInitial={getInitial} />
+          <PaymentPreview
+            paidBy={paidBy}
+            paidTo={paidTo}
+            getColor={getColor}
+            getInitial={getInitial}
+          />
           <p className="text-center text-white text-base sm:text-lg mb-1 break-words">
-            {paidBy?.name} paid <span className="font-bold">{paidTo?.name}</span>
+            {paidBy?.name} paid{" "}
+            <span className="font-bold">{paidTo?.name}</span>
           </p>
-          <p className="text-center text-gray-400 text-sm mb-6 break-all">{paidTo?.email}</p>
+          <p className="text-center text-gray-400 text-sm mb-6 break-all">
+            {paidTo?.email}
+          </p>
           {selectedExpenseIds.length > 0 && (
             <p className="text-center text-emerald-300 text-sm mb-6 break-words">
-              For {paidTo?.expenses?.filter(expense => selectedExpenseIds.includes(expense.id)).map(e => e.description).join(', ')}
+              For{" "}
+              {paidTo?.expenses
+                ?.filter((expense) => selectedExpenseIds.includes(expense.id))
+                .map((e) => e.description)
+                .join(", ")}
             </p>
           )}
           <div className="text-center mb-8">
-            <span className="text-4xl sm:text-5xl font-bold">₹{parseFloat(amount || 0).toFixed(2)}</span>
+            <span className="text-4xl sm:text-5xl font-bold">
+              ₹{parseFloat(amount || 0).toFixed(2)}
+            </span>
           </div>
           <button
             onClick={handleSettle}
             disabled={loading}
             className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg"
           >
-            {loading ? 'Recording...' : 'Record payment'}
+            {loading ? "Recording..." : "Record payment"}
           </button>
         </div>
       )}
@@ -331,10 +385,17 @@ export default function SettleUp() {
   );
 }
 
-function MemberList({ members, userId, getColor, getInitial, disabledIds = [], onSelect }) {
+function MemberList({
+  members,
+  userId,
+  getColor,
+  getInitial,
+  disabledIds = [],
+  onSelect,
+}) {
   return (
     <div className="max-w-lg mx-auto">
-      {members.map(member => {
+      {members.map((member) => {
         const disabled = disabledIds.includes(member.id);
 
         return (
@@ -343,26 +404,44 @@ function MemberList({ members, userId, getColor, getInitial, disabledIds = [], o
             onClick={() => !disabled && onSelect(member)}
             disabled={disabled}
             className={`w-full flex items-center gap-3 sm:gap-4 px-4 sm:px-6 py-4 border-b border-gray-800 transition text-left ${
-              disabled ? 'opacity-40 cursor-not-allowed bg-gray-900/40' : 'hover:bg-gray-900 cursor-pointer'
+              disabled
+                ? "opacity-40 cursor-not-allowed bg-gray-900/40"
+                : "hover:bg-gray-900 cursor-pointer"
             }`}
           >
-            <div className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${getColor(member.name)}`}>
+            <div
+              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-lg shrink-0 ${getColor(member.name)}`}
+            >
               {getInitial(member.name)}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium truncate">
                 {member.name}
-                {member.id === userId && <span className="text-gray-400 text-sm ml-1">(you)</span>}
+                {member.id === userId && (
+                  <span className="text-gray-400 text-sm ml-1">(you)</span>
+                )}
               </p>
               <p className="text-xs text-gray-500 truncate">{member.email}</p>
             </div>
             {disabled ? (
-              <span className="text-gray-500 text-sm shrink-0">same person</span>
+              <span className="text-gray-500 text-sm shrink-0">
+                same person
+              </span>
             ) : (
               <span className="text-right shrink-0">
-                {member.amount < -0.01 && <span className="text-red-400 text-sm">borrowes ₹{Math.abs(member.amount).toFixed(2)}</span>}
-                {member.amount > 0.01 && <span className="text-emerald-400 text-sm">gets ₹{member.amount.toFixed(2)}</span>}
-                {Math.abs(member.amount) < 0.01 && <span className="text-gray-500 text-sm">settled</span>}
+                {member.amount < -0.01 && (
+                  <span className="text-red-400 text-sm">
+                    borrowes ₹{Math.abs(member.amount).toFixed(2)}
+                  </span>
+                )}
+                {member.amount > 0.01 && (
+                  <span className="text-emerald-400 text-sm">
+                    gets ₹{member.amount.toFixed(2)}
+                  </span>
+                )}
+                {Math.abs(member.amount) < 0.01 && (
+                  <span className="text-gray-500 text-sm">settled</span>
+                )}
               </span>
             )}
           </button>
@@ -376,17 +455,25 @@ function PaymentPreview({ paidBy, paidTo, getColor, getInitial }) {
   return (
     <div className="flex items-center justify-center gap-3 sm:gap-6 mb-8 min-w-0">
       <div className="text-center">
-        <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-xl mx-auto mb-2 ${getColor(paidBy?.name)}`}>
+        <div
+          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-xl mx-auto mb-2 ${getColor(paidBy?.name)}`}
+        >
           {getInitial(paidBy?.name)}
         </div>
-        <p className="text-sm text-gray-400 max-w-28 truncate">{paidBy?.name}</p>
+        <p className="text-sm text-gray-400 max-w-28 truncate">
+          {paidBy?.name}
+        </p>
       </div>
       <FiArrowRight size={24} className="text-gray-400" />
       <div className="text-center">
-        <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-xl mx-auto mb-2 ${getColor(paidTo?.name)}`}>
+        <div
+          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center font-bold text-xl mx-auto mb-2 ${getColor(paidTo?.name)}`}
+        >
           {getInitial(paidTo?.name)}
         </div>
-        <p className="text-sm text-gray-400 max-w-28 truncate">{paidTo?.name}</p>
+        <p className="text-sm text-gray-400 max-w-28 truncate">
+          {paidTo?.name}
+        </p>
       </div>
     </div>
   );
