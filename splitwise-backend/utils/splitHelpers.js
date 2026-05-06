@@ -171,7 +171,9 @@ async function calculateUserDebts(groupId, userId) {
         id,
         name: person.name,
         email: person.email,
-        amount: 0
+        amount: 0,
+        expenses: [],        // current user owes them ke liye
+        creditsFromThem: [], // ✅ they owe current user ke liye (new)
       };
     }
     return debts[id];
@@ -182,18 +184,14 @@ async function calculateUserDebts(groupId, userId) {
     debt.amount = +(debt.amount + amount).toFixed(2);
   };
 
+  // Settlements track karo
   settlements.forEach(settlement => {
     const payerId = settlement.paidBy._id.toString();
     if (payerId === currentUserId) {
-      if (settlement.relatedExpenses && settlement.relatedExpenses.length > 0) {
-        // Allocate equally or full amount? We should allocate properly,
-        // but for now, we'll just add the full settlement amount to each linked expense
-        // so that they are fully considered paid up (which might over-estimate payment but avoids debt)
-        // A better approach is to sequentially allocate, same as attachSplitSettlementStatus.
+      if (settlement.relatedExpenses?.length > 0) {
         let remainingAmount = settlement.amount;
         settlement.relatedExpenses.forEach(exp => {
           const expenseId = exp._id.toString();
-          // Find split amount
           const expenseObj = expenses.find(e => e._id.toString() === expenseId);
           if (expenseObj) {
             const split = expenseObj.splits.find(s => {
@@ -216,76 +214,60 @@ async function calculateUserDebts(groupId, userId) {
 
   expenses.forEach(expense => {
     let currentUserPaidAmount = 0;
-    
-    // Calculate how much current user paid
-    if (expense.paidByMultiple && expense.paidByMultiple.length > 0) {
-      const p = expense.paidByMultiple.find(payer => payer.user && payer.user._id.toString() === currentUserId);
+
+    if (expense.paidByMultiple?.length > 0) {
+      const p = expense.paidByMultiple.find(payer => payer.user?._id.toString() === currentUserId);
       if (p) currentUserPaidAmount = p.amount;
-    } else if (expense.paidBy && expense.paidBy._id.toString() === currentUserId) {
+    } else if (expense.paidBy?._id.toString() === currentUserId) {
       currentUserPaidAmount = expense.amount;
     }
 
-    const userSplit = expense.splits.find(split => {
-      const splitUserId = split.user?._id?.toString() || split.user?.toString();
-      return splitUserId === currentUserId;
+    const userSplit = expense.splits.find(s => {
+      const sid = s.user?._id?.toString() || s.user?.toString();
+      return sid === currentUserId;
     });
-
     const currentUserSplitAmount = userSplit ? userSplit.amount : 0;
-    
-    // Net amount for this expense for the current user
     const netAmount = currentUserPaidAmount - currentUserSplitAmount;
 
     if (netAmount > 0) {
-      // Current user is a net creditor for this expense.
-      // Distribute this exact positive net amount proportionally among those who have net negative for this expense?
-      // Since calculating exact debts for multi-payer is complex, we will just say "They owe you".
-      // But we need to assign it to people.
-      // For simplicity in calculateUserDebts, we will fallback to simplified group logic or just attribute it to splits.
-      expense.splits.forEach(split => {
-        const splitUserId = split.user?._id?.toString() || split.user?.toString();
-        if (splitUserId && splitUserId !== currentUserId) {
-          // Add debt to that user directly? This might overestimate if there are multiple payers.
-          // To keep it simple, we just attribute full splits to the primary payer (first in paidByMultiple)
-          // or if current user is primary, we act like single payer.
-          // Since debts are reconciled globally, this specific view is just an approximation.
-        }
-      });
-      // A better approximation: if current user paid something, we add the splits of others as debts, 
-      // but scaled down by (currentUserPaidAmount / totalExpenseAmount).
+      // Current user ne pay kiya — doosron ko unka share dena hai
       expense.splits.forEach(split => {
         const splitUserId = split.user?._id?.toString() || split.user?.toString();
         if (splitUserId && splitUserId !== currentUserId) {
           const ratio = currentUserPaidAmount / expense.amount;
           addDebt(split.user, -split.amount * ratio);
+
+          // ✅ creditsFromThem mein add karo — yeh log mujhe denge
+          const debt = ensureDebt(split.user);
+          debt.creditsFromThem.push({
+            id: expense._id.toString(),
+            description: expense.description,
+            amount: expense.amount,
+            theirShare: +(split.amount * ratio).toFixed(2),
+          });
         }
       });
     } else if (netAmount < 0) {
-      // Current user is a net debtor for this expense.
       const amountOwed = Math.abs(netAmount);
-      
-      // Who do they owe? Distribute to the payers.
-      if (expense.paidByMultiple && expense.paidByMultiple.length > 0) {
+
+      if (expense.paidByMultiple?.length > 0) {
         expense.paidByMultiple.forEach(payer => {
-          if (payer.user && payer.user._id.toString() !== currentUserId) {
+          if (payer.user?._id.toString() !== currentUserId) {
             const ratio = payer.amount / expense.amount;
             addDebt(payer.user, amountOwed * ratio);
-            
-            // Add to detailed breakdown for the largest payer to keep UI simple
-            // We'll just pick the first payer to hold the UI breakdown record
             if (payer.user._id.toString() === expense.paidByMultiple[0].user._id.toString()) {
-               const debt = ensureDebt(payer.user);
-               const expenseId = expense._id.toString();
-               const remainingAmount = +(amountOwed * ratio - (linkedPayments[expenseId] || 0)).toFixed(2);
-               if (remainingAmount > 0.009) {
-                 debt.expenses = debt.expenses || [];
-                 debt.expenses.push({
-                   id: expenseId,
-                   description: expense.description,
-                   amount: expense.amount,
-                   userShare: amountOwed * ratio,
-                   remainingAmount
-                 });
-               }
+              const debt = ensureDebt(payer.user);
+              const expenseId = expense._id.toString();
+              const remainingAmount = +(amountOwed * ratio - (linkedPayments[expenseId] || 0)).toFixed(2);
+              if (remainingAmount > 0.009) {
+                debt.expenses.push({
+                  id: expenseId,
+                  description: expense.description,
+                  amount: expense.amount,
+                  userShare: amountOwed * ratio,
+                  remainingAmount,
+                });
+              }
             }
           }
         });
@@ -295,13 +277,12 @@ async function calculateUserDebts(groupId, userId) {
         const expenseId = expense._id.toString();
         const remainingAmount = +(amountOwed - (linkedPayments[expenseId] || 0)).toFixed(2);
         if (remainingAmount > 0.009) {
-          debt.expenses = debt.expenses || [];
           debt.expenses.push({
             id: expenseId,
             description: expense.description,
             amount: expense.amount,
             userShare: amountOwed,
-            remainingAmount
+            remainingAmount,
           });
         }
       }
@@ -311,7 +292,6 @@ async function calculateUserDebts(groupId, userId) {
   settlements.forEach(settlement => {
     const payerId = settlement.paidBy._id.toString();
     const payeeId = settlement.paidTo._id.toString();
-
     if (payerId === currentUserId) addDebt(settlement.paidTo, -settlement.amount);
     if (payeeId === currentUserId) addDebt(settlement.paidBy, settlement.amount);
   });
@@ -320,7 +300,8 @@ async function calculateUserDebts(groupId, userId) {
     .filter(debt => debt.amount > 0.009)
     .map(debt => ({
       ...debt,
-      expenses: (debt.expenses || []).sort((a, b) => b.remainingAmount - a.remainingAmount)
+      expenses: (debt.expenses || []).sort((a, b) => b.remainingAmount - a.remainingAmount),
+      creditsFromThem: (debt.creditsFromThem || []).sort((a, b) => b.theirShare - a.theirShare), // ✅
     }))
     .sort((a, b) => b.amount - a.amount);
 }
