@@ -819,17 +819,15 @@ const groupedMessages = (Array.isArray(chatMessages) ? chatMessages : []).reduce
       )}
     </div>
   );
+
   function DebtBreakdown({ userDebts, totalUserDebt }) {
   const [open, setOpen] = React.useState(false);
 
   return (
     <div className="w-full">
-      {/* Header */}
       <p className="font-semibold text-amber-100">
         You owe ₹{totalUserDebt.toFixed(2)} overall
       </p>
-
-      {/* Per-person summary */}
       <div className="mt-1 space-y-0.5">
         {userDebts.map(d => (
           <p key={d.id} className="text-sm text-amber-50/90">
@@ -838,7 +836,6 @@ const groupedMessages = (Array.isArray(chatMessages) ? chatMessages : []).reduce
         ))}
       </div>
 
-      {/* Show breakdown toggle */}
       <button
         onClick={() => setOpen(!open)}
         className="mt-3 text-xs text-amber-300 hover:text-amber-200 underline underline-offset-2 transition flex items-center gap-1"
@@ -846,47 +843,88 @@ const groupedMessages = (Array.isArray(chatMessages) ? chatMessages : []).reduce
         {open ? '▲ Hide breakdown' : '▼ Show how this was calculated'}
       </button>
 
-      {/* Breakdown detail */}
       {open && (
         <div className="mt-3 space-y-4">
-          {userDebts.map(d => (
-            <div key={d.id} className="bg-black/20 rounded-xl p-3">
+          {userDebts.map(d => {
+            const youOweTotal = (d.expenses || []).reduce((s, e) => s + e.remainingAmount, 0);
+            const theyOweTotal = (d.creditsFromThem || []).reduce((s, e) => s + e.theirShare, 0);
 
-              {/* Person header */}
-              <p className="text-sm font-semibold text-amber-200 mb-2">
-                📊 You → {d.name}
-              </p>
+            return (
+              <div key={d.id} className="bg-black/20 rounded-xl p-3 space-y-3">
+                <p className="text-sm font-semibold text-amber-200">📊 You ↔ {d.name}</p>
 
-              {/* What you owe them */}
-              {d.expenses?.length > 0 && (
-                <div className="mb-2">
-                  <p className="text-xs text-amber-100/60 mb-1">
-                    You owe {d.name} for:
-                  </p>
-                  <div className="space-y-1">
-                    {d.expenses.map(exp => (
-                      <div key={exp.id} className="flex justify-between text-xs text-amber-50/80">
-                        <span className="truncate max-w-[65%]">• {exp.description}</span>
-                        <span className="text-red-300 shrink-0">₹{Number(exp.remainingAmount).toFixed(2)}</span>
+                {/* You owe them */}
+                {d.expenses?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-red-300/80 mb-1">
+                      ➕ You owe {d.name} for:
+                    </p>
+                    <div className="space-y-1">
+                      {d.expenses.map(exp => (
+                        <div key={exp.id} className="flex justify-between text-xs text-amber-50/80">
+                          <span className="truncate max-w-[65%]">• {exp.description}</span>
+                          <span className="text-red-300 shrink-0">₹{Number(exp.remainingAmount).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between text-xs font-semibold text-red-300 border-t border-amber-500/20 pt-1">
+                        <span>Subtotal</span>
+                        <span>₹{youOweTotal.toFixed(2)}</span>
                       </div>
-                    ))}
-                    <div className="flex justify-between text-xs font-semibold text-red-300 border-t border-amber-500/20 pt-1 mt-1">
-                      <span>Subtotal you owe</span>
-                      <span>₹{d.expenses.reduce((s, e) => s + e.remainingAmount, 0).toFixed(2)}</span>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Final net */}
-              <div className="flex justify-between text-xs font-bold text-amber-300 border-t border-amber-500/30 pt-2 mt-1">
-                <span>Net you owe {d.name}</span>
-                <span>₹{Number(d.amount).toFixed(2)}</span>
+                {/* They owe you */}
+                {d.creditsFromThem?.length > 0 && (
+                  <div>
+                    <p className="text-xs text-emerald-300/80 mb-1">
+                      ➖ {d.name} owes you for:
+                    </p>
+                    <div className="space-y-1">
+                      {d.creditsFromThem.map(exp => (
+                        <div key={exp.id} className="flex justify-between text-xs text-amber-50/80">
+                          <span className="truncate max-w-[65%]">• {exp.description}</span>
+                          <span className="text-emerald-300 shrink-0">₹{Number(exp.theirShare).toFixed(2)}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between text-xs font-semibold text-emerald-300 border-t border-amber-500/20 pt-1">
+                        <span>Subtotal</span>
+                        <span>₹{theyOweTotal.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Calculation */}
+                {d.expenses?.length > 0 && d.creditsFromThem?.length > 0 && (
+                  <div className="bg-black/20 rounded-lg px-3 py-2 text-xs text-amber-200/80 space-y-0.5">
+                    <div className="flex justify-between">
+                      <span>You owe {d.name}</span>
+                      <span className="text-red-300">₹{youOweTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>{d.name} owes you</span>
+                      <span className="text-emerald-300">- ₹{theyOweTotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-amber-200 border-t border-amber-500/20 pt-1">
+                      <span>Net you owe</span>
+                      <span>₹{Number(d.amount).toFixed(2)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Agar sirf ek taraf hai */}
+                {!(d.expenses?.length > 0 && d.creditsFromThem?.length > 0) && (
+                  <div className="flex justify-between text-xs font-bold text-amber-300 border-t border-amber-500/30 pt-2">
+                    <span>Net you owe {d.name}</span>
+                    <span>₹{Number(d.amount).toFixed(2)}</span>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {/* Total */}
+          {/* Grand total */}
           <div className="flex justify-between text-sm font-bold text-amber-200 border-t border-amber-500/40 pt-2">
             <span>Total you owe</span>
             <span>₹{totalUserDebt.toFixed(2)}</span>
