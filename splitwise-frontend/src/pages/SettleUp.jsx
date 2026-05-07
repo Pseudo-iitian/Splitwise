@@ -469,18 +469,6 @@ export default function SettleUp() {
             >
               💵 {loading ? "Recording..." : "Mark as Cash Payment"}
             </button>
-
-            {/* Razorpay UPI */}
-            <button
-              onClick={handleRazorpayPayment}
-              disabled={loading}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg flex items-center justify-center gap-2"
-            >
-              📱{" "}
-              {loading
-                ? "Processing..."
-                : `Pay ₹${parseFloat(amount || 0).toFixed(2)} via UPI`}
-            </button>
           </div>
         </div>
       )}
