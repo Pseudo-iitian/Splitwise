@@ -90,7 +90,7 @@ router.post('/verify-upi', auth, async (req, res) => {
       'paytm', 'ybl', 'ibl', 'axl', 'upi', 'freecharge',
       'apl', 'bhim', 'sbi', 'hdfc', 'icici', 'axis',
       'kotak', 'indus', 'pnb', 'bob', 'cnrb', 'aubank',
-      'rapl', 'jupiteraxis', 'ikwik', 'phonepe', 'rbl',
+      'rapl', 'jupiteraxis', 'ikwik', 'phonepe', 'rbl','razorpay',
     ];
     const handle = upiId.split('@')[1]?.toLowerCase();
     if (!knownHandles.includes(handle)) {

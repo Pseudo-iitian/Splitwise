@@ -1,0 +1,18 @@
+# 1. master branch pe jao
+git checkout master
+
+# 2. latest code pull kar lo (optional but recommended)
+git pull origin master
+
+# 3. backend branch se sirf backend folder lao
+git checkout backend -- splitwise-backend
+
+# 4. check changes
+git status
+
+# 5. commit
+git add splitwise-backend
+git commit -m "Updated backend from backend branch"
+
+# 6. push
+git push origin master
