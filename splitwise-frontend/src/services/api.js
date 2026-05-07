@@ -65,8 +65,6 @@ export const deleteChatMessage = (groupId, messageId) =>
 export const updateProfile = (data) => api.put('/auth/profile', data);
 export const verifyUpi     = (data) => api.post('/auth/verify-upi', data);
 
-export const createRazorpayOrder = (data) => api.post('/payments/create-order', data);
-export const verifyRazorpayPayment = (data) => api.post('/payments/verify', data);
 
 
 export default api;
