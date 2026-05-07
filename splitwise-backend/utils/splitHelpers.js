@@ -163,7 +163,8 @@ async function calculateUserDebts(groupId, userId) {
   .sort({ date: -1 });
 
   const debts = {};
-  const linkedPayments = {};
+  const linkedPayments = {};        // current user ne jo pay kiya (expenses jisme wo debtor tha)
+  const linkedPaymentsFromOthers = {}; // doosron ne jo pay kiya (expenses jisme current user payer tha)
   const currentUserId = userId.toString();
 
   const ensureDebt = person => {
@@ -189,7 +190,10 @@ async function calculateUserDebts(groupId, userId) {
   // Settlements track karo
   settlements.forEach(settlement => {
     const payerId = settlement.paidBy._id.toString();
+    const payeeId = settlement.paidTo._id.toString();
+
     if (payerId === currentUserId) {
+      // Current user ne payment ki — expenses jisme wo debtor tha
       if (settlement.relatedExpenses?.length > 0) {
         let remainingAmount = settlement.amount;
         settlement.relatedExpenses.forEach(exp => {
@@ -210,6 +214,32 @@ async function calculateUserDebts(groupId, userId) {
       } else if (settlement.relatedExpense?._id) {
         const expenseId = settlement.relatedExpense._id.toString();
         linkedPayments[expenseId] = +((linkedPayments[expenseId] || 0) + settlement.amount).toFixed(2);
+      }
+    } else if (payeeId === currentUserId) {
+      // Doosre person ne current user ko pay kiya — expenses jisme current user payer tha
+      // In amounts ko creditsFromThem se deduct karna hoga
+      if (settlement.relatedExpenses?.length > 0) {
+        let remainingAmount = settlement.amount;
+        settlement.relatedExpenses.forEach(exp => {
+          const expenseId = exp._id.toString();
+          const expenseObj = expenses.find(e => e._id.toString() === expenseId);
+          if (expenseObj) {
+            const split = expenseObj.splits.find(s => {
+              const splitUserId = s.user?._id?.toString() || s.user?.toString();
+              return splitUserId === payerId;
+            });
+            if (split && remainingAmount > 0) {
+              const amountToAllocate = Math.min(split.amount, remainingAmount);
+              if (!linkedPaymentsFromOthers[expenseId]) linkedPaymentsFromOthers[expenseId] = {};
+              linkedPaymentsFromOthers[expenseId][payerId] = +((linkedPaymentsFromOthers[expenseId][payerId] || 0) + amountToAllocate).toFixed(2);
+              remainingAmount -= amountToAllocate;
+            }
+          }
+        });
+      } else if (settlement.relatedExpense?._id) {
+        const expenseId = settlement.relatedExpense._id.toString();
+        if (!linkedPaymentsFromOthers[expenseId]) linkedPaymentsFromOthers[expenseId] = {};
+        linkedPaymentsFromOthers[expenseId][payerId] = +((linkedPaymentsFromOthers[expenseId][payerId] || 0) + settlement.amount).toFixed(2);
       }
     }
   });
@@ -239,14 +269,20 @@ async function calculateUserDebts(groupId, userId) {
           const ratio = currentUserPaidAmount / expense.amount;
           addDebt(split.user, -split.amount * ratio);
 
-          // ✅ creditsFromThem mein add karo — yeh log mujhe denge
-          const debt = ensureDebt(split.user);
-          debt.creditsFromThem.push({
-            id: expense._id.toString(),
-            description: expense.description,
-            amount: expense.amount,
-            theirShare: +(split.amount * ratio).toFixed(2),
-          });
+          // ✅ creditsFromThem mein add karo — but settled amounts filter karo
+          const expenseId = expense._id.toString();
+          const settledByThem = (linkedPaymentsFromOthers[expenseId]?.[splitUserId] || 0);
+          const rawShare = +(split.amount * ratio).toFixed(2);
+          const remainingCredit = +(rawShare - settledByThem).toFixed(2);
+          if (remainingCredit > 0.009) {
+            const debt = ensureDebt(split.user);
+            debt.creditsFromThem.push({
+              id: expenseId,
+              description: expense.description,
+              amount: expense.amount,
+              theirShare: remainingCredit,
+            });
+          }
         }
       });
     } else if (netAmount < 0) {
