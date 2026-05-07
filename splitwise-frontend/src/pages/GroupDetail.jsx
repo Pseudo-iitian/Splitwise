@@ -86,6 +86,7 @@ export default function GroupDetail() {
   const [expenseSubTab, setExpenseSubTab] = useState("expenses"); // ✅ new
   const [expenseFilter, setExpenseFilter] = useState("all"); // ✅ new
   const [settlementFilter, setSettlementFilter] = useState("all"); // ✅ new
+  const [settlementToFilter, setSettlementToFilter] = useState("all"); // ✅ new
   const [loading, setLoading] = useState(true);
   const [inviteLink, setInviteLink] = useState("");
   const [showInvite, setShowInvite] = useState(false);
@@ -530,17 +531,27 @@ export default function GroupDetail() {
             {/* ── Sub tabs: Expenses | Settlements ── */}
             <div className="flex gap-2 bg-gray-900 border border-gray-800 rounded-2xl p-1">
               <button
-                onClick={() => { setExpenseSubTab("expenses"); setExpenseFilter("all"); }}
+                onClick={() => {
+                  setExpenseSubTab("expenses");
+                  setExpenseFilter("all");
+                }}
                 className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition ${
-                  expenseSubTab === "expenses" ? "bg-emerald-500 text-white" : "text-gray-400 hover:text-white"
+                  expenseSubTab === "expenses"
+                    ? "bg-emerald-500 text-white"
+                    : "text-gray-400 hover:text-white"
                 }`}
               >
                 💸 Expenses
               </button>
               <button
-                onClick={() => { setExpenseSubTab("settlements"); setSettlementFilter("all"); }}
+                onClick={() => {
+                  setExpenseSubTab("settlements");
+                  setSettlementFilter("all");
+                }}
                 className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition ${
-                  expenseSubTab === "settlements" ? "bg-emerald-500 text-white" : "text-gray-400 hover:text-white"
+                  expenseSubTab === "settlements"
+                    ? "bg-emerald-500 text-white"
+                    : "text-gray-400 hover:text-white"
                 }`}
               >
                 ✅ Settlements
@@ -565,9 +576,14 @@ export default function GroupDetail() {
                     {groupMembers.map((member) => (
                       <button
                         key={member._id || member}
-                        onClick={() => setExpenseFilter(member._id?.toString() || member?.toString())}
+                        onClick={() =>
+                          setExpenseFilter(
+                            member._id?.toString() || member?.toString(),
+                          )
+                        }
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                          expenseFilter === (member._id?.toString() || member?.toString())
+                          expenseFilter ===
+                          (member._id?.toString() || member?.toString())
                             ? "bg-emerald-500 text-white"
                             : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
                         }`}
@@ -577,31 +593,81 @@ export default function GroupDetail() {
                     ))}
                   </>
                 ) : (
-                  <>
-                    <button
-                      onClick={() => setSettlementFilter("all")}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                        settlementFilter === "all"
-                          ? "bg-emerald-500 text-white"
-                          : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-                      }`}
-                    >
-                      All
-                    </button>
-                    {groupMembers.map((member) => (
-                      <button
-                        key={member._id || member}
-                        onClick={() => setSettlementFilter(member._id?.toString() || member?.toString())}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                          settlementFilter === (member._id?.toString() || member?.toString())
-                            ? "bg-emerald-500 text-white"
-                            : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-                        }`}
-                      >
-                        {member.name || "Member"}
-                      </button>
-                    ))}
-                  </>
+                  <div className="space-y-2">
+                    {/* FROM filter */}
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1.5 font-medium">
+                        From (who paid):
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => setSettlementFilter("all")}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                            settlementFilter === "all"
+                              ? "bg-emerald-500 text-white"
+                              : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                          }`}
+                        >
+                          All
+                        </button>
+                        {groupMembers.map((member) => (
+                          <button
+                            key={member._id || member}
+                            onClick={() =>
+                              setSettlementFilter(
+                                member._id?.toString() || member?.toString(),
+                              )
+                            }
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                              settlementFilter ===
+                              (member._id?.toString() || member?.toString())
+                                ? "bg-emerald-500 text-white"
+                                : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                            }`}
+                          >
+                            {member.name || "Member"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* TO filter */}
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1.5 font-medium">
+                        To (who received):
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        <button
+                          onClick={() => setSettlementToFilter("all")}
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                            settlementToFilter === "all"
+                              ? "bg-blue-500 text-white"
+                              : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                          }`}
+                        >
+                          All
+                        </button>
+                        {groupMembers.map((member) => (
+                          <button
+                            key={member._id || member}
+                            onClick={() =>
+                              setSettlementToFilter(
+                                member._id?.toString() || member?.toString(),
+                              )
+                            }
+                            className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                              settlementToFilter ===
+                              (member._id?.toString() || member?.toString())
+                                ? "bg-blue-500 text-white"
+                                : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                            }`}
+                          >
+                            {member.name || "Member"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -633,130 +699,143 @@ export default function GroupDetail() {
 
             {/* Filter based on sub tab */}
             {(() => {
-              const filteredItems = expenseSubTab === "expenses"
-                ? activityItems
-                    .filter(i => i.type === "expense")
-                    .filter(i => {
-                      if (expenseFilter === "all") return true;
-                      // Paid by filter
-                      const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
-                      return paidById === expenseFilter;
-                    })
-                : activityItems
-                    .filter(i => i.type === "settlement")
-                    .filter(i => {
-                      if (settlementFilter === "all") return true;
-                      // Paid by filter
-                      const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
-                      return paidById === settlementFilter;
-                    });
+              const filteredItems =
+                expenseSubTab === "expenses"
+                  ? activityItems
+                      .filter((i) => i.type === "expense")
+                      .filter((i) => {
+                        if (expenseFilter === "all") return true;
+                        const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
+                        return paidById === expenseFilter;
+                      })
+                  : activityItems
+                      .filter((i) => i.type === "settlement")
+                      .filter((i) => {
+                        const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
+                        const paidToId = i.data.paidTo?._id?.toString() || i.data.paidTo?.toString();
+                        const fromMatch = settlementFilter === "all" || paidById === settlementFilter;
+                        const toMatch = settlementToFilter === "all" || paidToId === settlementToFilter;
+                        return fromMatch && toMatch;
+                      });
 
-              return filteredItems.length === 0 ? (
-                <div className="text-center py-20">
-                  <div className="text-5xl mb-4">💸</div>
-                  <p className="text-gray-400">No expenses yet</p>
-                  <Link
-                    to={`/group/${groupId}/add-expense`}
-                    className="inline-block mt-4 text-emerald-400 hover:underline text-sm"
-                  >
-                    Add first expense
-                  </Link>
-                </div>
-              ) : (
-                filteredItems.map((item) => {
-                  if (item.type === "settlement") {
-                    const s = item.data;
+              if (filteredItems.length === 0) {
+                return (
+                  <div className="text-center py-20">
+                    <div className="text-5xl mb-4">💸</div>
+                    <p className="text-gray-400">
+                      {expenseSubTab === "expenses" ? "No expenses found" : "No settlements found"}
+                    </p>
+                  </div>
+                );
+              }
+
+              const total = filteredItems.reduce((sum, i) => sum + Number(i.data.amount || 0), 0);
+              const filterMember = expenseFilter !== "all"
+                ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === expenseFilter)
+                : null;
+              const fromMember = settlementFilter !== "all"
+                ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === settlementFilter)
+                : null;
+              const toMember = settlementToFilter !== "all"
+                ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === settlementToFilter)
+                : null;
+
+              return (
+                <>
+                  {filteredItems.map((item) => {
+                    if (item.type === "settlement") {
+                      const s = item.data;
+                      return (
+                        <SettlementCard
+                          key={item.id}
+                          s={s}
+                          item={item}
+                          getSettlementText={getSettlementText}
+                          openSettlementModal={openSettlementModal}
+                          currentUserId={user?.id}
+                          userDebts={userDebts}
+                        />
+                      );
+                    }
+                    const exp = item.data;
                     return (
-                      <SettlementCard
-                        key={item.id}
-                        s={s}
-                        item={item}
-                        getSettlementText={getSettlementText}
-                        openSettlementModal={openSettlementModal}
-                        currentUserId={user?.id}
-                        userDebts={userDebts}
-                      />
-                    );
-                  }
-                  const exp = item.data;
-                  return (
-                    <div
-                      key={item.id}
-                      className="bg-gray-900 border border-gray-800 rounded-2xl p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="min-w-0">
-                          <h3 className="font-semibold truncate">
-                            {exp.description}
-                          </h3>
-                          <p className="text-gray-400 text-sm mt-0.5 truncate">
-                            Paid by{" "}
-                            {exp.paidByMultiple?.length > 1
-                              ? `${exp.paidBy?.name || "Someone"} and ${exp.paidByMultiple.length - 1} other${exp.paidByMultiple.length > 2 ? "s" : ""}`
-                              : exp.paidBy?.name || "Someone"}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="text-emerald-400 font-bold text-lg">
-                            ₹{exp.amount}
-                          </span>
-                          <button
-                            onClick={() =>
-                              navigate(
-                                "/group/" +
-                                  groupId +
-                                  "/edit-expense/" +
-                                  exp._id,
-                              )
-                            }
-                            className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition"
-                          >
-                            <FiEdit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteModal(exp)}
-                            className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
-                          >
-                            <FiTrash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {exp.splits?.map((split) => {
-                          const splitUserId = split.user?._id || split.user;
-                          const isPayer =
-                            exp.paidByMultiple?.length > 0
-                              ? exp.paidByMultiple.some(
-                                  (p) =>
-                                    (p.user?._id || p.user) === splitUserId &&
-                                    p.amount > 0,
-                                )
-                              : (exp.paidBy?._id || exp.paidBy) === splitUserId;
-                          const isGreen = split.settled || isPayer;
-                          return (
-                            <span
-                              key={split._id}
-                              className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${isGreen ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"}`}
+                      <div key={item.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="min-w-0">
+                            <h3 className="font-semibold truncate">{exp.description}</h3>
+                            <p className="text-gray-400 text-sm mt-0.5 truncate">
+                              Paid by{" "}
+                              {exp.paidByMultiple?.length > 1
+                                ? `${exp.paidBy?.name || "Someone"} and ${exp.paidByMultiple.length - 1} other${exp.paidByMultiple.length > 2 ? "s" : ""}`
+                                : exp.paidBy?.name || "Someone"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-emerald-400 font-bold text-lg">₹{exp.amount}</span>
+                            <button
+                              onClick={() => navigate("/group/" + groupId + "/edit-expense/" + exp._id)}
+                              className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition"
                             >
-                              {isGreen ? (
-                                <FiCheckCircle size={12} />
-                              ) : (
-                                <FiXCircle size={12} />
-                              )}
-                              <span>
-                                {split.user?.name}: ₹
-                                {Number(split.amount || 0).toFixed(2)}
+                              <FiEdit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => setDeleteModal(exp)}
+                              className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition"
+                            >
+                              <FiTrash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {exp.splits?.map((split) => {
+                            const splitUserId = split.user?._id || split.user;
+                            const isPayer =
+                              exp.paidByMultiple?.length > 0
+                                ? exp.paidByMultiple.some((p) => (p.user?._id || p.user) === splitUserId && p.amount > 0)
+                                : (exp.paidBy?._id || exp.paidBy) === splitUserId;
+                            const isGreen = split.settled || isPayer;
+                            return (
+                              <span key={split._id} className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${isGreen ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"}`}>
+                                {isGreen ? <FiCheckCircle size={12} /> : <FiXCircle size={12} />}
+                                <span>{split.user?.name}: ₹{Number(split.amount || 0).toFixed(2)}</span>
                               </span>
-                            </span>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-gray-600 mt-2">{item.date.toLocaleDateString("en-IN")}</p>
                       </div>
-                      <p className="text-xs text-gray-600 mt-2">
-                        {item.date.toLocaleDateString("en-IN")}
+                    );
+                  })}
+
+                  {/* ── Total summary ── */}
+                  {expenseSubTab === "expenses" ? (
+                    <div className="bg-gray-900 border border-emerald-500/20 rounded-2xl px-4 py-3 flex items-center justify-between">
+                      <span className="text-sm text-gray-400">
+                        Total paid by{" "}
+                        <span className="text-white font-medium">
+                          {filterMember ? filterMember.name : "Everyone"}
+                        </span>
+                      </span>
+                      <span className="font-bold text-emerald-400 text-sm">₹{total.toFixed(2)}</span>
+                    </div>
+                  ) : (
+                    <div className="bg-gray-900 border border-emerald-500/20 rounded-2xl px-4 py-3 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-400">
+                          {fromMember ? (
+                            <><span className="text-white font-medium">{fromMember.name}</span> paid {toMember ? <span className="text-white font-medium">{toMember.name}</span> : "everyone"}</>
+                          ) : (
+                            <>Total settlements {toMember ? <>to <span className="text-white font-medium">{toMember.name}</span></> : ""}</>
+                          )}
+                        </span>
+                        <span className="font-bold text-emerald-400 text-sm">₹{total.toFixed(2)}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {filteredItems.length} settlement{filteredItems.length !== 1 ? "s" : ""}
                       </p>
                     </div>
-                  );
-                })
+                  )}
+                </>
               );
             })()}
           </div>
