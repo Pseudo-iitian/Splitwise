@@ -125,25 +125,23 @@ router.post('/', auth, async (req, res) => {
 });
 
 // ─── GET /api/expenses/group/:groupId — Get expenses ─────────────────────────
+// GET /api/expenses/group/:groupId
 router.get('/group/:groupId', auth, async (req, res) => {
   try {
-    const cacheKey = keys.expenses(req.params.groupId);
+    const cacheKey = keys.expenses(req.params.groupId, req.user.id); // ✅ userId pass karo
 
-    // 1️⃣ Try cache
     const cached = await getCache(cacheKey);
     if (cached) return res.json(cached);
 
-    // 2️⃣ Cache miss — hit DB
     const expenses = await Expense.find({ group: req.params.groupId })
-      .populate('paidBy',             'name email')
-      .populate('paidByMultiple.user','name email')
-      .populate('splits.user',        'name email')
+      .populate('paidBy',              'name email')
+      .populate('paidByMultiple.user', 'name email')
+      .populate('splits.user',         'name email')
       .sort({ date: -1 });
 
     const withStatus = await attachSplitSettlementStatus(expenses);
 
-    // 3️⃣ Cache result
-    await setCache(cacheKey, withStatus, TTL.EXPENSES);
+    await setCache(cacheKey, withStatus, TTL.EXPENSES); // ✅ user-specific cache
 
     res.json(withStatus);
   } catch (err) {

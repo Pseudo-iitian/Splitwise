@@ -80,23 +80,34 @@ async function delPattern(pattern) {
 }
 
 // ── Cache key builders ────────────────────────────────────────────────────────
+// utils/cache.js mein keys object replace karo:
 const keys = {
-  userGroups:  (userId)   => `groups:user:${userId}`,
-  expenses:    (groupId)  => `expenses:group:${groupId}`,
-  summary:     (groupId)  => `summary:group:${groupId}`,
-  history:     (groupId)  => `history:group:${groupId}`,
+  userGroups:  (userId)            => `groups:user:${userId}`,
+  expenses:    (groupId, userId)   => `expenses:group:${groupId}:user:${userId}`,  // ✅ userId add
+  summary:     (groupId, userId)   => `summary:group:${groupId}:user:${userId}`,   // ✅ userId add
+  history:     (groupId)           => `history:group:${groupId}`,                  // ✅ same rehne do
 };
 
 // ── Invalidate all cache for a group ─────────────────────────────────────────
 // Call this whenever expense/settlement is added/updated/deleted
+// Abhi sirf ek userId invalidate hota hai — sab members ka karna hai
 async function invalidateGroup(groupId, userId) {
-  await Promise.all([
-    delCache(keys.expenses(groupId)),
-    delCache(keys.summary(groupId)),
-    delCache(keys.history(groupId)),
-    // Also invalidate user groups (balance might have changed)
-    ...(userId ? [delCache(keys.userGroups(userId))] : []),
-  ]);
+  const promises = [
+    // History sab ke liye same hai — groupId se delete
+    groupId ? delCache(keys.history(groupId)) : Promise.resolve(),
+    // User ke groups cache
+    userId  ? delCache(keys.userGroups(userId)) : Promise.resolve(),
+  ];
+
+  // ✅ Expenses aur summary user-specific hain — pattern se delete karo
+  if (groupId) {
+    promises.push(
+      delPattern(`expenses:group:${groupId}:user:*`),  // sab users ka expenses cache clear
+      delPattern(`summary:group:${groupId}:user:*`),   // sab users ka summary cache clear
+    );
+  }
+
+  await Promise.all(promises);
 }
 
 module.exports = { getCache, setCache, delCache, delPattern, invalidateGroup, keys, TTL };
