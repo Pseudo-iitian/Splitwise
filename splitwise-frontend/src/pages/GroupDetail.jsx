@@ -84,6 +84,8 @@ export default function GroupDetail() {
   const [history, setHistory] = useState([]);
   const [activeTab, setActiveTab] = useState("expenses");
   const [expenseSubTab, setExpenseSubTab] = useState("expenses"); // ✅ new
+  const [expenseFilter, setExpenseFilter] = useState("all"); // ✅ new
+  const [settlementFilter, setSettlementFilter] = useState("all"); // ✅ new
   const [loading, setLoading] = useState(true);
   const [inviteLink, setInviteLink] = useState("");
   const [showInvite, setShowInvite] = useState(false);
@@ -525,27 +527,83 @@ export default function GroupDetail() {
           /* ── EXPENSES TAB ──────────────────────────────────────── */
           <div className="space-y-3 py-6">
             {/* ── Sub tabs: Expenses | Settlements ── */}
+            {/* ── Sub tabs: Expenses | Settlements ── */}
             <div className="flex gap-2 bg-gray-900 border border-gray-800 rounded-2xl p-1">
               <button
-                onClick={() => setExpenseSubTab("expenses")}
+                onClick={() => { setExpenseSubTab("expenses"); setExpenseFilter("all"); }}
                 className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition ${
-                  expenseSubTab === "expenses"
-                    ? "bg-emerald-500 text-white"
-                    : "text-gray-400 hover:text-white"
+                  expenseSubTab === "expenses" ? "bg-emerald-500 text-white" : "text-gray-400 hover:text-white"
                 }`}
               >
                 💸 Expenses
               </button>
               <button
-                onClick={() => setExpenseSubTab("settlements")}
+                onClick={() => { setExpenseSubTab("settlements"); setSettlementFilter("all"); }}
                 className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition ${
-                  expenseSubTab === "settlements"
-                    ? "bg-emerald-500 text-white"
-                    : "text-gray-400 hover:text-white"
+                  expenseSubTab === "settlements" ? "bg-emerald-500 text-white" : "text-gray-400 hover:text-white"
                 }`}
               >
                 ✅ Settlements
               </button>
+            </div>
+
+            {/* ── Filter by member ── */}
+            <div className="overflow-x-auto pb-1">
+              <div className="flex gap-2 min-w-max">
+                {expenseSubTab === "expenses" ? (
+                  <>
+                    <button
+                      onClick={() => setExpenseFilter("all")}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                        expenseFilter === "all"
+                          ? "bg-emerald-500 text-white"
+                          : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                      }`}
+                    >
+                      All
+                    </button>
+                    {groupMembers.map((member) => (
+                      <button
+                        key={member._id || member}
+                        onClick={() => setExpenseFilter(member._id?.toString() || member?.toString())}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                          expenseFilter === (member._id?.toString() || member?.toString())
+                            ? "bg-emerald-500 text-white"
+                            : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                        }`}
+                      >
+                        {member.name || "Member"}
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => setSettlementFilter("all")}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                        settlementFilter === "all"
+                          ? "bg-emerald-500 text-white"
+                          : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                      }`}
+                    >
+                      All
+                    </button>
+                    {groupMembers.map((member) => (
+                      <button
+                        key={member._id || member}
+                        onClick={() => setSettlementFilter(member._id?.toString() || member?.toString())}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                          settlementFilter === (member._id?.toString() || member?.toString())
+                            ? "bg-emerald-500 text-white"
+                            : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                        }`}
+                      >
+                        {member.name || "Member"}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
             </div>
             {/* Debt banner */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
@@ -575,10 +633,23 @@ export default function GroupDetail() {
 
             {/* Filter based on sub tab */}
             {(() => {
-              const filteredItems =
-                expenseSubTab === "expenses"
-                  ? activityItems.filter((i) => i.type === "expense")
-                  : activityItems.filter((i) => i.type === "settlement");
+              const filteredItems = expenseSubTab === "expenses"
+                ? activityItems
+                    .filter(i => i.type === "expense")
+                    .filter(i => {
+                      if (expenseFilter === "all") return true;
+                      // Paid by filter
+                      const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
+                      return paidById === expenseFilter;
+                    })
+                : activityItems
+                    .filter(i => i.type === "settlement")
+                    .filter(i => {
+                      if (settlementFilter === "all") return true;
+                      // Paid by filter
+                      const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
+                      return paidById === settlementFilter;
+                    });
 
               return filteredItems.length === 0 ? (
                 <div className="text-center py-20">
