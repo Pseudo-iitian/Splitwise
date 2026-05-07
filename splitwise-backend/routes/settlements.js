@@ -5,7 +5,18 @@ const Group      = require('../models/Group');
 const Expense    = require('../models/Expense');
 const auth       = require('../middleware/auth');
 const { logActivity } = require('../utils/activityLogger');
-const { getCache, setCache, invalidateGroup, keys, TTL } = require('../utils/cache'); // ✅ ADD
+const { getCache, setCache, invalidateGroup, keys, TTL } = require('../utils/cache');
+
+// Helper: mark a user's split as settled/unsettled across a list of expense IDs
+async function markSplitsSettled(expenseIds, userId, settled) {
+  if (!expenseIds || expenseIds.length === 0) return;
+  for (const expId of expenseIds) {
+    await Expense.updateOne(
+      { _id: expId, 'splits.user': userId },
+      { $set: { 'splits.$.settled': settled } }
+    );
+  }
+}
 
 async function validateRelatedExpenses(relatedExpenses, groupId, payerId, payeeId) {
   if (!relatedExpenses || !Array.isArray(relatedExpenses) || relatedExpenses.length === 0) return [];
@@ -72,7 +83,74 @@ router.post('/', auth, async (req, res) => {
     });
     await settlement.save();
 
-    const populatedSettlement = await settlement.populate([
+    // ✅ Mark payer's splits as settled in all linked expenses
+    for (const expId of expenseIds) {
+      const exp = await Expense.findById(expId);
+      if (!exp) continue;
+      const expPayerId = exp.paidBy?.toString();
+      if (expPayerId === paidTo.toString()) {
+        await Expense.updateOne(
+          { _id: expId, 'splits.user': payerId },
+          { $set: { 'splits.$.settled': true } }
+        );
+      }
+      if (expPayerId === payerId.toString()) {
+        await Expense.updateOne(
+          { _id: expId, 'splits.user': paidTo },
+          { $set: { 'splits.$.settled': true } }
+        );
+      }
+    }
+
+    // ✅ NET-SETTLEMENT OFFSET LOGIC
+    // When Abhishek pays Sahil ₹326.20 (net of ₹637.80 - ₹311.60),
+    // the ₹311.60 difference means Sahil's debts to Abhishek are "cancelled out".
+    // So mark Sahil's splits as settled in expenses paid by Abhishek.
+    const autoSettledExpenseIds = [];
+    if (expenseIds.length > 0) {
+      // Calculate paidBy's total share in the linked relatedExpenses
+      let paidByTotalShare = 0;
+      for (const expId of expenseIds) {
+        const exp = await Expense.findById(expId);
+        if (!exp) continue;
+        if (exp.paidBy?.toString() === paidTo.toString()) {
+          const split = exp.splits.find(s => s.user?.toString() === payerId.toString());
+          if (split) paidByTotalShare += split.amount;
+        }
+      }
+
+      const offsetAmount = +(paidByTotalShare - paymentAmount).toFixed(2);
+
+      if (offsetAmount > 0.009) {
+        // Find expenses paid by payerId where paidTo has unsettled splits
+        const reverseExpenses = await Expense.find({ group: groupId, paidBy: payerId });
+        let remaining = offsetAmount;
+
+        for (const exp of reverseExpenses) {
+          if (remaining <= 0.009) break;
+          const split = exp.splits.find(
+            s => s.user?.toString() === paidTo.toString() && !s.settled
+          );
+          if (split && split.amount <= remaining + 0.009) {
+            await Expense.updateOne(
+              { _id: exp._id, 'splits.user': paidTo },
+              { $set: { 'splits.$.settled': true } }
+            );
+            autoSettledExpenseIds.push(exp._id);
+            remaining = +(remaining - split.amount).toFixed(2);
+          }
+        }
+
+        // Store auto-settled expenses in the settlement for revert on delete
+        if (autoSettledExpenseIds.length > 0) {
+          await Settlement.findByIdAndUpdate(settlement._id, {
+            $set: { autoSettledExpenses: autoSettledExpenseIds }
+          });
+        }
+      }
+    }
+
+    const populatedSettlement = await Settlement.findById(settlement._id).populate([
       { path: 'paidBy',            select: 'name email' },
       { path: 'paidTo',            select: 'name email' },
       { path: 'relatedExpenses',   select: 'description amount' },
@@ -88,7 +166,7 @@ router.post('/', auth, async (req, res) => {
       amount: paymentAmount,
     });
 
-    // ✅ Invalidate cache — settlement ne balance change kar diya
+    // ✅ Invalidate cache
     await invalidateGroup(groupId, req.user.id);
 
     res.status(201).json(populatedSettlement);
@@ -139,6 +217,22 @@ router.put('/:settlementId', auth, async (req, res) => {
     if (!memberIds.includes(req.user.id))
       return res.status(403).json({ msg: 'You are not a member of this group' });
 
+    // ✅ Revert old linked expenses' settled status before updating
+    const oldExpenseIds = settlement.relatedExpenses?.map(e => e.toString()) || [];
+    const payerId = settlement.paidBy.toString();
+    const payeeId = settlement.paidTo.toString();
+    for (const expId of oldExpenseIds) {
+      const exp = await Expense.findById(expId);
+      if (!exp) continue;
+      const expPayerId = exp.paidBy?.toString();
+      if (expPayerId === payeeId) {
+        await Expense.updateOne({ _id: expId, 'splits.user': payerId }, { $set: { 'splits.$.settled': false } });
+      }
+      if (expPayerId === payerId) {
+        await Expense.updateOne({ _id: expId, 'splits.user': payeeId }, { $set: { 'splits.$.settled': false } });
+      }
+    }
+
     settlement.amount = paymentAmount;
     if (note !== undefined) settlement.note = note;
 
@@ -159,6 +253,20 @@ router.put('/:settlementId', auth, async (req, res) => {
       }
     }
     await settlement.save();
+
+    // ✅ Mark new linked expenses' splits as settled
+    const newExpenseIds = settlement.relatedExpenses?.map(e => e.toString()) || [];
+    for (const expId of newExpenseIds) {
+      const exp = await Expense.findById(expId);
+      if (!exp) continue;
+      const expPayerId = exp.paidBy?.toString();
+      if (expPayerId === payeeId) {
+        await Expense.updateOne({ _id: expId, 'splits.user': payerId }, { $set: { 'splits.$.settled': true } });
+      }
+      if (expPayerId === payerId) {
+        await Expense.updateOne({ _id: expId, 'splits.user': payeeId }, { $set: { 'splits.$.settled': true } });
+      }
+    }
 
     const populatedSettlement = await settlement.populate([
       { path: 'paidBy',           select: 'name email' },
@@ -194,6 +302,31 @@ router.delete('/:settlementId', auth, async (req, res) => {
     const memberIds = group.members.map(m => m.toString());
     if (!memberIds.includes(req.user.id))
       return res.status(403).json({ msg: 'You are not a member of this group' });
+
+    // ✅ Revert settled status on linked expenses before deleting
+    const delPayerId = settlement.paidBy.toString();
+    const delPayeeId = settlement.paidTo.toString();
+    const delExpenseIds = settlement.relatedExpenses?.map(e => e.toString()) || [];
+    for (const expId of delExpenseIds) {
+      const exp = await Expense.findById(expId);
+      if (!exp) continue;
+      const expPayerId = exp.paidBy?.toString();
+      if (expPayerId === delPayeeId) {
+        await Expense.updateOne({ _id: expId, 'splits.user': delPayerId }, { $set: { 'splits.$.settled': false } });
+      }
+      if (expPayerId === delPayerId) {
+        await Expense.updateOne({ _id: expId, 'splits.user': delPayeeId }, { $set: { 'splits.$.settled': false } });
+      }
+    }
+
+    // ✅ Also revert auto-settled (offset) expenses
+    const autoSettledIds = settlement.autoSettledExpenses?.map(e => e.toString()) || [];
+    for (const expId of autoSettledIds) {
+      await Expense.updateOne(
+        { _id: expId, 'splits.user': delPayeeId },
+        { $set: { 'splits.$.settled': false } }
+      );
+    }
 
     await Settlement.findByIdAndDelete(req.params.settlementId);
 

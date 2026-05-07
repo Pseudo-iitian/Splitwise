@@ -6,6 +6,8 @@ const settlementSchema = new mongoose.Schema({
   amount: { type: Number, required: true },
   relatedExpense: { type: mongoose.Schema.Types.ObjectId, ref: 'Expense' },
   relatedExpenses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Expense' }],
+  // Expenses auto-settled due to net-settlement offset (e.g. Sahil's grocery splits when Abhishek pays net)
+  autoSettledExpenses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Expense' }],
   isExpenseUpdate: { type: Boolean, default: false },
   note:   { type: String, default: '' },
   date:   { type: Date, default: Date.now }

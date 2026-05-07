@@ -1,7 +1,6 @@
 const express    = require('express');
 const router     = express.Router();
 const Expense    = require('../models/Expense');
-const Settlement = require('../models/Settlement');
 const auth       = require('../middleware/auth');
 const { splitEqually, splitByPercentage, splitByExact } = require('../utils/splitHelpers');
 const { logActivity }    = require('../utils/activityLogger');
@@ -10,55 +9,20 @@ const Group = require('../models/Group');
 const { sendExpenseNotificationEmail } = require('../utils/emailService');
 
 // ── Attach settlement status to expenses ──────────────────────────────────────
+// Simply trust the `settled` field stored in the DB splits.
+// The settlements.js route updates splits.settled on create/update/delete.
 async function attachSplitSettlementStatus(expenses) {
-  const expenseIds  = expenses.map(e => e._id);
-  const settlements = await Settlement.find({
-    $or: [
-      { relatedExpense:  { $in: expenseIds } },
-      { relatedExpenses: { $in: expenseIds } },
-    ],
-  });
-
-  const paidAmounts = {};
-
-  settlements.forEach(settlement => {
-    const payerId = settlement.paidBy.toString();
-    if (settlement.relatedExpenses?.length > 0) {
-      let remaining = settlement.amount;
-      settlement.relatedExpenses.forEach(expIdObj => {
-        const expId  = expIdObj.toString();
-        const expense = expenses.find(e => e._id.toString() === expId);
-        if (expense) {
-          const split = expense.splits.find(s => {
-            const uid = s.user?._id?.toString() || s.user?.toString();
-            return uid === payerId;
-          });
-          if (split && remaining > 0) {
-            const alloc = Math.min(split.amount, remaining);
-            const key = `${expId}:${payerId}`;
-            paidAmounts[key] = +((paidAmounts[key] || 0) + alloc).toFixed(2);
-            remaining -= alloc;
-          }
-        }
-      });
-    } else if (settlement.relatedExpense) {
-      const expId = settlement.relatedExpense.toString();
-      const key   = `${expId}:${payerId}`;
-      paidAmounts[key] = +((paidAmounts[key] || 0) + settlement.amount).toFixed(2);
-    }
-  });
-
   return expenses.map(expense => {
-    const plain     = expense.toObject();
-    const paidById  = plain.paidBy?._id?.toString() || plain.paidBy?.toString();
+    const plain    = expense.toObject();
+    const paidById = plain.paidBy?._id?.toString() || plain.paidBy?.toString();
 
     plain.splits = plain.splits.map(split => {
-      const splitUserId   = split.user?._id?.toString() || split.user?.toString();
-      const settledAmount = splitUserId === paidById
-        ? split.amount
-        : (paidAmounts[`${plain._id.toString()}:${splitUserId}`] || 0);
-
-      return { ...split, settledAmount, settled: settledAmount >= split.amount - 0.009 };
+      const splitUserId = split.user?._id?.toString() || split.user?.toString();
+      // Payer is always considered settled (they paid!)
+      const isPayer     = splitUserId === paidById;
+      const settled     = isPayer || !!split.settled;
+      const settledAmount = settled ? split.amount : 0;
+      return { ...split, settledAmount, settled };
     });
 
     return plain;

@@ -269,19 +269,19 @@ async function calculateUserDebts(groupId, userId) {
           const ratio = currentUserPaidAmount / expense.amount;
           addDebt(split.user, -split.amount * ratio);
 
-          // ✅ creditsFromThem mein add karo — but settled amounts filter karo
+          // ✅ Use split.settled directly — if they've already paid, don't show in creditsFromThem
           const expenseId = expense._id.toString();
-          const settledByThem = (linkedPaymentsFromOthers[expenseId]?.[splitUserId] || 0);
-          const rawShare = +(split.amount * ratio).toFixed(2);
-          const remainingCredit = +(rawShare - settledByThem).toFixed(2);
-          if (remainingCredit > 0.009) {
-            const debt = ensureDebt(split.user);
-            debt.creditsFromThem.push({
-              id: expenseId,
-              description: expense.description,
-              amount: expense.amount,
-              theirShare: remainingCredit,
-            });
+          if (!split.settled) {
+            const rawShare = +(split.amount * ratio).toFixed(2);
+            if (rawShare > 0.009) {
+              const debt = ensureDebt(split.user);
+              debt.creditsFromThem.push({
+                id: expenseId,
+                description: expense.description,
+                amount: expense.amount,
+                theirShare: rawShare,
+              });
+            }
           }
         }
       });
@@ -313,14 +313,14 @@ async function calculateUserDebts(groupId, userId) {
         addDebt(expense.paidBy, amountOwed);
         const debt = ensureDebt(expense.paidBy);
         const expenseId = expense._id.toString();
-        const remainingAmount = +(amountOwed - (linkedPayments[expenseId] || 0)).toFixed(2);
-        if (remainingAmount > 0.009) {
+        // ✅ Use userSplit.settled directly — if current user's split is settled, don't show in expenses
+        if (!userSplit?.settled) {
           debt.expenses.push({
             id: expenseId,
             description: expense.description,
             amount: expense.amount,
             userShare: amountOwed,
-            remainingAmount,
+            remainingAmount: amountOwed,
           });
         }
       }

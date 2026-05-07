@@ -212,12 +212,18 @@ export default function EditExpense() {
         const { data: allSettlements } = await getSettlements(groupId);
         const promises = [];
         for (const memberId of markedAsUnpaid) {
-          const settlementsToDelete = allSettlements.filter(s => 
-            (s.relatedExpense?._id || s.relatedExpense) === expenseId && 
-            (s.paidBy?._id || s.paidBy) === memberId
-          );
+          const settlementsToDelete = allSettlements.filter(s => {
+            const payerId = s.paidBy?._id || s.paidBy;
+            // Check relatedExpenses (array) — new format
+            const inRelatedExpenses = (s.relatedExpenses || []).some(
+              re => (re?._id || re) === expenseId
+            );
+            // Check relatedExpense (singular) — legacy format
+            const inRelatedExpense = (s.relatedExpense?._id || s.relatedExpense) === expenseId;
+            return payerId === memberId && (inRelatedExpenses || inRelatedExpense);
+          });
           for (const s of settlementsToDelete) {
-             promises.push(deleteSettlement(s._id));
+            promises.push(deleteSettlement(s._id));
           }
         }
         if (promises.length > 0) {
