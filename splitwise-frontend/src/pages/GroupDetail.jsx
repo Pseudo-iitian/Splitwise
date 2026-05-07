@@ -442,7 +442,7 @@ export default function GroupDetail() {
     return acc;
   }, {});
 
-  const TABS = ["expenses", "balances", "history", "chat"];
+  const TABS = ["expenses", "balances", "history", "chat", "spending"];
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -508,6 +508,7 @@ export default function GroupDetail() {
             }`}
           >
             {tab === "chat" && <FiMessageCircle size={14} />}
+            {tab === "spending" && <FiActivity size={14} />}
             {tab}
           </button>
         ))}
@@ -912,6 +913,9 @@ export default function GroupDetail() {
               </form>
             </div>
           </div>
+        ) : activeTab === "spending" ? (
+          /* ── SPENDING TAB ──────────────────────────────────────── */
+          <SpendingTab expenses={expenses} groupMembers={groupMembers} />
         ) : null}
       </div>
 
@@ -1627,6 +1631,221 @@ export default function GroupDetail() {
               )}
             </div>
           </div>
+        )}
+      </div>
+    );
+  }
+  function SpendingTab({ expenses, groupMembers }) {
+    const monthlyData = React.useMemo(() => {
+      const months = {};
+      expenses.forEach((exp) => {
+        const d = new Date(exp.date || exp.createdAt);
+        const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const monthLabel = d.toLocaleString("en-IN", {
+          month: "long",
+          year: "numeric",
+        });
+        if (!months[monthKey]) {
+          months[monthKey] = { label: monthLabel, expenses: [] };
+        }
+        months[monthKey].expenses.push(exp);
+      });
+      return Object.entries(months)
+        .sort((a, b) => b[0].localeCompare(a[0]))
+        .map(([, val]) => val);
+    }, [expenses]);
+
+    const getMemberId = (member) =>
+      member?._id?.toString() || member?.toString();
+
+    const getMemberSplit = (exp, member) => {
+      const memberId = getMemberId(member);
+      const split = exp.splits?.find((sp) => {
+        const uid = sp.user?._id?.toString() || sp.user?.toString();
+        return uid === memberId;
+      });
+      return split ? Number(split.amount) : 0;
+    };
+
+    const isPayer = (exp, member) => {
+      const memberId = getMemberId(member);
+      return (
+        exp.paidBy?._id?.toString() === memberId ||
+        exp.paidBy?.toString() === memberId
+      );
+    };
+
+    if (groupMembers.length === 0) {
+      return <div className="text-center py-20 text-gray-400">Loading...</div>;
+    }
+
+    return (
+      <div className="py-6 space-y-10">
+        {monthlyData.length === 0 ? (
+          <div className="text-center py-20">
+            <div className="text-5xl mb-4">📊</div>
+            <p className="text-gray-400">No expenses yet</p>
+          </div>
+        ) : (
+          monthlyData.map((month, mIdx) => {
+            const memberTotals = groupMembers.map((member) => ({
+              member,
+              total: month.expenses.reduce(
+                (sum, exp) => sum + getMemberSplit(exp, member),
+                0,
+              ),
+            }));
+            const grandTotal = memberTotals.reduce((s, m) => s + m.total, 0);
+            const totalExpenses = month.expenses.reduce(
+              (s, e) => s + Number(e.amount),
+              0,
+            );
+
+            return (
+              <div
+                key={mIdx}
+                className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden"
+              >
+                {/* ── Month header ── */}
+                <div className="bg-gray-800 px-4 py-3 flex items-center justify-between">
+                  <h3 className="font-bold text-emerald-400 text-sm sm:text-base flex items-center gap-2">
+                    📅 {month.label}
+                  </h3>
+                  <span className="text-xs text-gray-400">
+                    {month.expenses.length} expense
+                    {month.expenses.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+
+                {/* ── Scrollable table ── */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs sm:text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-800">
+                        {/* Sticky first column */}
+                        <th className="text-left px-4 py-3 text-gray-400 font-medium min-w-[140px] sticky left-0 bg-gray-900 z-10">
+                          Expense
+                        </th>
+                        <th className="text-right px-3 py-3 text-gray-400 font-medium min-w-[80px]">
+                          Total
+                        </th>
+                        {groupMembers.map((member) => (
+                          <th
+                            key={getMemberId(member)}
+                            className="text-right px-3 py-3 text-gray-400 font-medium min-w-[90px]"
+                          >
+                            <span className="truncate block max-w-[90px] ml-auto">
+                              {member.name || "Member"}
+                            </span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {month.expenses.map((exp, eIdx) => (
+                        <tr
+                          key={exp._id || eIdx}
+                          className="border-b border-gray-800/50 hover:bg-gray-800/30 transition"
+                        >
+                          {/* Expense name — sticky */}
+                          <td className="px-4 py-3 sticky left-0 bg-gray-900 z-10">
+                            <p className="text-white font-medium truncate max-w-[130px]">
+                              {exp.description}
+                            </p>
+                            <p className="text-gray-500 text-xs mt-0.5">
+                              {new Date(
+                                exp.date || exp.createdAt,
+                              ).toLocaleDateString("en-IN")}
+                            </p>
+                          </td>
+
+                          {/* Total amount */}
+                          <td className="px-3 py-3 text-right text-emerald-400 font-semibold whitespace-nowrap">
+                            ₹{Number(exp.amount).toFixed(0)}
+                          </td>
+
+                          {/* Per member split */}
+                          {groupMembers.map((member) => {
+                            const share = getMemberSplit(exp, member);
+                            const paid = isPayer(exp, member);
+                            return (
+                              <td
+                                key={getMemberId(member)}
+                                className={`px-3 py-3 text-right font-medium whitespace-nowrap ${
+                                  share > 0
+                                    ? paid
+                                      ? "text-emerald-400"
+                                      : "text-red-300"
+                                    : "text-gray-600"
+                                }`}
+                              >
+                                {share > 0 ? (
+                                  <span className="flex items-center justify-end gap-1">
+                                    {paid && (
+                                      <span className="text-[10px] text-emerald-500 font-bold">
+                                        paid
+                                      </span>
+                                    )}
+                                    ₹{share.toFixed(0)}
+                                  </span>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+
+                      {/* ── Monthly subtotal row ── */}
+                      <tr className="border-t-2 border-gray-700 bg-gray-800/50">
+                        <td className="px-4 py-3 sticky left-0 bg-gray-800/50 z-10 font-bold text-white text-xs sm:text-sm">
+                          Monthly Total
+                        </td>
+                        <td className="px-3 py-3 text-right font-bold text-emerald-400 whitespace-nowrap">
+                          ₹{totalExpenses.toFixed(0)}
+                        </td>
+                        {memberTotals.map(({ member, total }) => (
+                          <td
+                            key={getMemberId(member)}
+                            className="px-3 py-3 text-right font-bold text-amber-300 whitespace-nowrap"
+                          >
+                            ₹{total.toFixed(0)}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* ── Grand total footer ── */}
+                <div className="px-4 py-3 bg-gray-800/60 border-t border-gray-700">
+                  <div className="flex flex-wrap gap-x-6 gap-y-1 items-center justify-between">
+                    <span className="text-xs text-gray-400">
+                      Total group spend this month:
+                    </span>
+                    <span className="font-bold text-emerald-400 text-sm">
+                      ₹{grandTotal.toFixed(2)}
+                    </span>
+                  </div>
+                  {/* Per person summary */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                    {memberTotals.map(({ member, total }) => (
+                      <span
+                        key={getMemberId(member)}
+                        className="text-xs text-gray-400"
+                      >
+                        {member.name}:{" "}
+                        <span className="text-amber-300 font-semibold">
+                          ₹{total.toFixed(0)}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     );
