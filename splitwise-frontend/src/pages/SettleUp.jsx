@@ -10,6 +10,7 @@ import {
   FiCheckCircle,
   FiMoreHorizontal,
 } from "react-icons/fi";
+import { createRazorpayOrder, verifyRazorpayPayment } from "../services/api";
 
 export default function SettleUp() {
   const { groupId } = useParams();
@@ -97,6 +98,91 @@ export default function SettleUp() {
       resetForm();
     } catch (err) {
       toast.error(err.response?.data?.msg || "Failed to record payment");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRazorpayPayment = async () => {
+    const paymentAmount = parseFloat(amount);
+    if (!paidBy || !paidTo || !paymentAmount || paymentAmount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // 1️⃣ Order banao backend pe
+      const orderRes = await createRazorpayOrder({
+        amount: paymentAmount,
+        groupId,
+        paidTo: paidTo.id,
+        relatedExpenses:
+          selectedExpenseIds.length > 0 ? selectedExpenseIds : [],
+      });
+
+      const { orderId, keyId } = orderRes.data;
+
+      // 2️⃣ Razorpay checkout open karo
+      const options = {
+        key: keyId,
+        amount: Math.round(paymentAmount * 100),
+        currency: "INR",
+        name: "Splitwise",
+        description: `Payment to ${paidTo.name}`,
+        order_id: orderId,
+
+        // ✅ UPI prefill
+        prefill: {
+          name: paidTo.name,
+          email: paidTo.email,
+          contact: "",
+          vpa: paidTo.upiId || "", // UPI ID
+        },
+
+        // ✅ Sirf UPI dikhao
+        method: {
+          upi: true,
+          card: false,
+          netbanking: false,
+          wallet: false,
+        },
+
+        theme: { color: "#10b981" },
+
+        handler: async (response) => {
+          // 3️⃣ Payment verify karo
+          try {
+            await verifyRazorpayPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              groupId,
+              paidTo: paidTo.id,
+              amount: paymentAmount,
+              relatedExpenses:
+                selectedExpenseIds.length > 0 ? selectedExpenseIds : [],
+            });
+            toast.success("Payment successful! 🎉");
+            await fetchSummary();
+            resetForm();
+          } catch {
+            toast.error("Payment verification failed");
+          }
+        },
+
+        modal: {
+          ondismiss: () => {
+            toast.error("Payment cancelled");
+            setLoading(false);
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+    } catch (err) {
+      toast.error(err.response?.data?.msg || "Failed to initiate payment");
     } finally {
       setLoading(false);
     }
@@ -372,15 +458,33 @@ export default function SettleUp() {
               ₹{parseFloat(amount || 0).toFixed(2)}
             </span>
           </div>
-          <button
-            onClick={handleSettle}
-            disabled={loading}
-            className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg"
-          >
-            {loading ? "Recording..." : "Record payment"}
-          </button>
+
+          {/* ── Payment buttons ── */}
+          <div className="space-y-3">
+            {/* Cash payment */}
+            <button
+              onClick={handleSettle}
+              disabled={loading}
+              className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg flex items-center justify-center gap-2"
+            >
+              💵 {loading ? "Recording..." : "Mark as Cash Payment"}
+            </button>
+
+            {/* Razorpay UPI */}
+            <button
+              onClick={handleRazorpayPayment}
+              disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg flex items-center justify-center gap-2"
+            >
+              📱{" "}
+              {loading
+                ? "Processing..."
+                : `Pay ₹${parseFloat(amount || 0).toFixed(2)} via UPI`}
+            </button>
+          </div>
         </div>
       )}
+      
     </div>
   );
 }
