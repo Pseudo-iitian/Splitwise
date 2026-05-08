@@ -73,6 +73,10 @@ export const voteOnPoll = (groupId, messageId, optionIndex) =>
 export const deleteChatMessage = (groupId, messageId) => 
   api.delete(`/groups/${groupId}/chat/${messageId}`);
 
+export const aiAssistExpense = (groupId, message, history = []) =>
+  api.post(`/groups/${groupId}/ai-assist`, { message, history });
+
+
 export const updateProfile = (data) => api.put('/auth/profile', data);
 export const verifyUpi     = (data) => api.post('/auth/verify-upi', data);
 

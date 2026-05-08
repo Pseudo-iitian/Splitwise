@@ -19,6 +19,7 @@ import {
   sendChatMedia,
   createPoll,
   voteOnPoll,
+  aiAssistExpense,
 } from "../services/api";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -47,6 +48,8 @@ import {
   FiBarChart2,
   FiDownload,
   FiPaperclip,
+  FiCpu,
+  FiZap,
 } from "react-icons/fi";
 
 const getCatEmoji = (cat) => {
@@ -144,6 +147,17 @@ export default function GroupDetail() {
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [pollCreating, setPollCreating] = useState(false);
+
+  // ── AI Expense Assistant ──────────────────────────────────────────────────
+  const [showAIChat, setShowAIChat]       = useState(false);
+  const [aiMessages, setAiMessages]       = useState([
+    { role: 'bot', text: '👋 Hi! Main aapka AI Expense Assistant hoon.\n\nBas natural language mein batao — Hindi, English, ya Hinglish sab chalega!\n\n**Example:**\n• "Sahil ne dinner pay kiya 1200 ka"\n• "Maine petrol bhara 500 ka"\n• "Pizza 1500 Vikas ne pay kiya 60% mera 40% Sahil ka"' }
+  ]);
+  const [aiInput, setAiInput]             = useState('');
+  const [aiLoading, setAiLoading]         = useState(false);
+  const [aiPreview, setAiPreview]         = useState(null); // parsed expense to confirm
+  const aiChatEndRef                      = useRef(null);
+
 
   useEffect(() => {
     fetchAll();
@@ -315,7 +329,74 @@ export default function GroupDetail() {
     } catch { toast.error('Vote failed'); }
   };
 
+  // ── AI Expense Assistant handlers ─────────────────────────────────────────
+  const handleAISend = async () => {
+    if (!aiInput.trim() || aiLoading) return;
+    const userMsg = aiInput.trim();
+    setAiInput('');
+    setAiMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setAiLoading(true);
+    setAiPreview(null);
+    try {
+      // Build history from current messages (exclude welcome message at index 0)
+      const history = aiMessages.slice(1).map(m => ({ role: m.role, text: m.text }));
+      const res  = await aiAssistExpense(groupId, userMsg, history);
+      const data = res.data;
+      if (data.action === 'ADD_EXPENSE') {
+        const payer       = groupMembers?.find(m => (m._id || m) === data.paidBy);
+        const memberNames = (data.splitBetween || [])
+          .map(id => groupMembers?.find(m => (m._id || m) === id)?.name || id)
+          .join(', ');
+        setAiPreview(data);
+        setAiMessages(prev => [...prev, {
+          role: 'bot',
+          text: `✅ **Expense parsed!**\n\n📝 **${data.description}**\n💰 ₹${data.amount}\n👤 Paid by: ${payer?.name || data.paidBy}\n🔀 Split: ${data.splitType}\n👥 Among: ${memberNames || 'All members'}`,
+          isPreview: true,
+        }]);
+      } else if (data.action === 'ASK_USER') {
+        setAiMessages(prev => [...prev, { role: 'bot', text: data.question }]);
+      } else {
+        setAiMessages(prev => [...prev, { role: 'bot', text: 'Kuch samajh nahi aaya, dobara try karo!' }]);
+      }
+    } catch (err) {
+      console.error('AI Error:', err);
+      const msg = err?.response?.data?.details || err?.message || 'Unknown error';
+      setAiMessages(prev => [...prev, { role: 'bot', text: `❌ Error: ${msg}\n\nServer check karo ya thodi der baad try karo.` }]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAIConfirm = async () => {
+    if (!aiPreview) return;
+    try {
+      await addExpense({
+        description: aiPreview.description,
+        amount:      parseFloat(aiPreview.amount),
+        groupId,
+        paidBy:      aiPreview.paidBy,
+        splitType:   (aiPreview.splitType || 'equal').toLowerCase(),
+        members:     aiPreview.splitBetween?.length
+          ? aiPreview.splitBetween
+          : groupMembers?.map(m => m._id || m),
+        splits: aiPreview.splits || [],
+      });
+      toast.success('✅ Expense added by AI!');
+      setAiPreview(null);
+      setAiMessages(prev => [...prev, { role: 'bot', text: '🎉 Expense successfully add ho gaya! 🚀' }]);
+      fetchAll();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to add expense');
+    }
+  };
+
+  const handleAIReject = () => {
+    setAiPreview(null);
+    setAiMessages(prev => [...prev, { role: 'bot', text: '↩️ Ok! Modify karke dobara batao.' }]);
+  };
+
   const fetchAll = async () => {
+
     try {
       const [expRes, summaryRes, histRes, groupRes] = await Promise.all([
         getExpenses(groupId),
@@ -1788,6 +1869,129 @@ export default function GroupDetail() {
           </div>
         </div>
       )}
+
+      {/* ── AI Expense Assistant Floating Button ───────────────────────────── */}
+      <button
+        onClick={() => setShowAIChat(true)}
+        style={{
+          position: 'fixed', bottom: '88px', right: '20px', zIndex: 9999,
+          width: '56px', height: '56px', borderRadius: '50%',
+          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+          border: 'none', cursor: 'pointer', boxShadow: '0 4px 24px rgba(99,102,241,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'transform 0.2s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        title="AI Expense Assistant"
+      >
+        <span style={{ fontSize: '24px' }}>🤖</span>
+      </button>
+
+      {/* ── AI Expense Assistant Modal ─────────────────────────────────────── */}
+      {showAIChat && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 10000,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#0f172a', borderRadius: '24px 24px 0 0',
+            width: '100%', maxWidth: '480px', height: '85vh',
+            display: 'flex', flexDirection: 'column',
+            border: '1px solid rgba(99,102,241,0.3)',
+            boxShadow: '0 -8px 40px rgba(99,102,241,0.2)',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex', alignItems: 'center', gap: '12px',
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1))',
+              borderRadius: '24px 24px 0 0',
+            }}>
+              <div style={{
+                width: '40px', height: '40px', borderRadius: '50%',
+                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px',
+              }}>🤖</div>
+              <div style={{ flex: 1 }}>
+                <p style={{ margin: 0, fontWeight: 700, color: '#fff', fontSize: '15px' }}>AI Expense Assistant</p>
+                <p style={{ margin: 0, fontSize: '12px', color: '#a78bfa' }}>Hindi • English • Hinglish</p>
+              </div>
+              <button onClick={() => setShowAIChat(false)} style={{
+                background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
+                borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer',
+                fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>✕</button>
+            </div>
+            {/* Messages */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {aiMessages.map((msg, i) => (
+                <div key={i} style={{
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '4px',
+                }}>
+                  <div style={{
+                    maxWidth: '85%', padding: '12px 16px',
+                    borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                    background: msg.role === 'user' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.07)',
+                    color: '#fff', fontSize: '14px', lineHeight: '1.6',
+                    border: msg.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {msg.text.replace(/\*\*(.*?)\*\*/g, '$1')}
+                  </div>
+                  {msg.isPreview && aiPreview && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                      <button onClick={handleAIConfirm} style={{
+                        background: 'linear-gradient(135deg, #10b981, #059669)',
+                        color: '#fff', border: 'none', borderRadius: '12px',
+                        padding: '8px 20px', cursor: 'pointer', fontWeight: 600, fontSize: '14px',
+                      }}>✅ Confirm</button>
+                      <button onClick={handleAIReject} style={{
+                        background: 'rgba(239,68,68,0.2)', color: '#f87171',
+                        border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px',
+                        padding: '8px 20px', cursor: 'pointer', fontWeight: 600, fontSize: '14px',
+                      }}>✏️ Edit</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {aiLoading && (
+                <div style={{ padding: '12px 16px', borderRadius: '18px 18px 18px 4px',
+                  background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
+                  alignSelf: 'flex-start' }}>
+                  <span style={{ color: '#a78bfa' }}>⚡ Thinking...</span>
+                </div>
+              )}
+              <div ref={aiChatEndRef} />
+            </div>
+            {/* Input */}
+            <div style={{
+              padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)',
+              display: 'flex', gap: '10px', alignItems: 'center',
+            }}>
+              <input
+                value={aiInput}
+                onChange={e => setAiInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAISend()}
+                placeholder='e.g. "Sahil ne dinner pay kiya 1200 ka"'
+                style={{
+                  flex: 1, background: 'rgba(255,255,255,0.07)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '14px', padding: '12px 16px', color: '#fff', fontSize: '14px', outline: 'none',
+                }}
+              />
+              <button onClick={handleAISend} disabled={aiLoading || !aiInput.trim()} style={{
+                width: '44px', height: '44px', borderRadius: '50%', border: 'none', cursor: 'pointer',
+                background: aiInput.trim() ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px',
+              }}>🚀</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 

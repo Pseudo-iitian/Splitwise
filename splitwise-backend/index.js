@@ -5,6 +5,7 @@ const cors     = require('cors');
 
 const wishlistRoutes = require('./routes/wishlist');
 const chatRoutes     = require('./routes/chat');
+const aiAssistRoutes = require('./routes/aiAssist');
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use('/api/expenses',    require('./routes/expenses'));
 app.use('/api/settlements', require('./routes/settlements'));
 app.use('/api/wishlist',    wishlistRoutes);
 app.use('/api/groups',      require('./routes/groups'));
+app.use('/api/groups/:groupId/ai-assist', aiAssistRoutes);
 
 
 // Root route
