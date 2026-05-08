@@ -683,6 +683,20 @@ export default function GroupDetail() {
                     >
                       All
                     </button>
+
+                    {/* ── Unpaid Mine button ── */}
+                    <button
+                      onClick={() => setExpenseFilter("unpaid_mine")}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap flex items-center gap-1.5 ${
+                        expenseFilter === "unpaid_mine"
+                          ? "bg-red-500 text-white border border-red-500"
+                          : "bg-gray-800 text-red-400 hover:text-red-300 border border-red-500/40"
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
+                      Unpaid (Mine)
+                    </button>
+
                     {groupMembers.map((member) => (
                       <button
                         key={member._id || member}
@@ -815,6 +829,26 @@ export default function GroupDetail() {
                       .filter((i) => i.type === "expense")
                       .filter((i) => {
                         if (expenseFilter === "all") return true;
+                        if (expenseFilter === "unpaid_mine") {
+                          // Show expenses where current user's split is NOT settled
+                          // and current user is NOT the payer of that expense
+                          const mySplit = i.data.splits?.find((s) => {
+                            const splitUserId = s.user?._id?.toString() || s.user?.toString();
+                            return splitUserId === user?.id;
+                          });
+                          if (!mySplit) return false;
+                          // Check if user is the payer — if payer, they are always green
+                          const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
+                          if (paidById === user?.id) return false; // I paid — not "unpaid by me"
+                          // If multi-payer, check if I am one of the payers
+                          if (i.data.paidByMultiple?.length > 1) {
+                            const iAmPayer = i.data.paidByMultiple.some(
+                              (p) => (p.user?._id?.toString() || p.user?.toString()) === user?.id && p.amount > 0
+                            );
+                            if (iAmPayer) return false;
+                          }
+                          return !mySplit.settled;
+                        }
                         const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
                         return paidById === expenseFilter;
                       })
@@ -840,7 +874,18 @@ export default function GroupDetail() {
               }
 
               const total = filteredItems.reduce((sum, i) => sum + Number(i.data.amount || 0), 0);
-              const filterMember = expenseFilter !== "all"
+
+              // My unpaid share total for "Unpaid (Mine)" filter
+              const myUnpaidTotal = expenseFilter === "unpaid_mine"
+                ? filteredItems.reduce((sum, item) => {
+                    const mySplit = item.data.splits?.find(
+                      (s) => (s.user?._id?.toString() || s.user?.toString()) === user?.id
+                    );
+                    return sum + Number(mySplit?.amount || 0);
+                  }, 0)
+                : 0;
+
+              const filterMember = expenseFilter !== "all" && expenseFilter !== "unpaid_mine"
                 ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === expenseFilter)
                 : null;
               const fromMember = settlementFilter !== "all"
@@ -852,6 +897,21 @@ export default function GroupDetail() {
 
               return (
                 <>
+                  {/* ── Unpaid Mine summary banner ── */}
+                  {expenseFilter === "unpaid_mine" && (
+                    <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-sm text-red-300 font-medium">
+                          {filteredItems.length} unpaid expense{filteredItems.length !== 1 ? "s" : ""} by you
+                        </span>
+                      </div>
+                      <span className="text-red-400 font-bold text-base">
+                        ₹{myUnpaidTotal.toFixed(2)} owed
+                      </span>
+                    </div>
+                  )}
+
                   {filteredItems.map((item) => {
                     if (item.type === "settlement") {
                       const s = item.data;
