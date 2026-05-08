@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /wishlist
+
+# Block private/dynamic routes from crawlers
+Disallow: /group/
+Disallow: /profile
+Disallow: /join/
+
+# Sitemap location
+Sitemap: https://splitwise-five-phi.vercel.app/sitemap.xml
+
+# Crawl delay (be nice to servers)
+Crawl-delay: 5

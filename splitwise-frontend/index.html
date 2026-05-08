@@ -2,9 +2,121 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Splitwise WebApp</title>
+
+    <!-- ══ Primary SEO ══════════════════════════════════════════════════════ -->
+    <title>SplitKaro – Free Expense Splitting App | Split Bills with Friends & Groups</title>
+    <meta name="description" content="SplitKaro makes splitting bills easy. Track shared expenses, settle debts instantly, and manage group finances with friends, roommates & trips. Free to use. No ads." />
+    <meta name="keywords" content="expense splitting app, split bills, splitwise alternative, bill splitter, group expense tracker, share expenses with friends, settle debts, expense manager, trip expense splitter, roommate bill splitter, kharch baatna, group bill calculator, free expense app india" />
+    <meta name="author" content="SplitKaro" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="https://splitwise-five-phi.vercel.app/" />
+
+    <!-- ══ Open Graph (WhatsApp / Facebook preview) ════════════════════════ -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://splitwise-five-phi.vercel.app/" />
+    <meta property="og:title" content="SplitKaro – Free Expense Splitting App | Split Bills with Friends" />
+    <meta property="og:description" content="Track shared expenses, split bills equally or by percentage, settle debts, and manage group finances. Best free Splitwise alternative in India." />
+    <meta property="og:image" content="https://splitwise-five-phi.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:site_name" content="SplitKaro" />
+    <meta property="og:locale" content="en_IN" />
+
+    <!-- ══ Twitter Card ════════════════════════════════════════════════════ -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SplitKaro – Split Bills with Friends for Free" />
+    <meta name="twitter:description" content="The easiest way to split expenses with friends, roommates, and travel groups. Free, fast, and simple." />
+    <meta name="twitter:image" content="https://splitwise-five-phi.vercel.app/og-image.png" />
+
+    <!-- ══ Favicon & Icons ═════════════════════════════════════════════════ -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- ══ Theme Color (browser tab color) ════════════════════════════════ -->
+    <meta name="theme-color" content="#10b981" />
+    <meta name="msapplication-TileColor" content="#10b981" />
+
+    <!-- ══ Structured Data — WebApplication Schema ════════════════════════ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "SplitKaro",
+      "url": "https://splitwise-five-phi.vercel.app/",
+      "description": "Free expense splitting app to track shared bills, manage group finances and settle debts with friends, roommates and travel groups.",
+      "applicationCategory": "FinanceApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "INR"
+      },
+      "featureList": [
+        "Split bills equally or by percentage",
+        "Group expense tracking",
+        "Real-time chat in groups",
+        "Settle debts with UPI",
+        "Expense history and balance tracking",
+        "Wishlist and poll features",
+        "Send images, files and audio in group chat"
+      ],
+      "screenshot": "https://splitwise-five-phi.vercel.app/og-image.png",
+      "creator": {
+        "@type": "Person",
+        "name": "Abhishek Verma"
+      }
+    }
+    </script>
+
+    <!-- ══ Structured Data — FAQ Schema (helps Google featured snippets) ══ -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "How to split bills with friends online?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Use SplitKaro to create a group, add expenses, and it automatically calculates who owes whom. You can split equally, by percentage, or by exact amounts."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is SplitKaro free to use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, SplitKaro is completely free to use. No ads, no subscriptions. Create groups, split expenses and settle debts for free."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is the best free Splitwise alternative in India?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "SplitKaro is a free Splitwise alternative designed for Indian users with UPI payment support, INR currency, group chat, polls, and media sharing."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How to track shared expenses with roommates?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Create a group on SplitKaro, invite your roommates, and add expenses as they come. The app automatically keeps track of balances and tells you who owes what."
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- ══ Google Fonts ════════════════════════════════════════════════════ -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- ══ Razorpay ════════════════════════════════════════════════════════ -->
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
   </head>
   <body>

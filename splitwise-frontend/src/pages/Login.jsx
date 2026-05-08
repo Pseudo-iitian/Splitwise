@@ -4,12 +4,14 @@ import { useDispatch } from 'react-redux';
 import { login } from '../services/api';
 import { setAuth } from '../store/authSlice';
 import toast, { Toaster } from 'react-hot-toast';
+import useSEO from '../hooks/useSEO';
 
 export default function Login() {
   const [form, setForm]       = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const dispatch  = useDispatch();
   const navigate  = useNavigate();
+  useSEO('Sign In', 'Sign in to SplitKaro – the free expense splitting app. Split bills with friends, track group expenses and settle debts easily.');
 
   const handleSubmit = async (e) => {
     e.preventDefault();

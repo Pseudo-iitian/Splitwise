@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { getGroups, createGroup, deleteGroup } from "../services/api";
 import { logout } from "../store/authSlice";
 import toast, { Toaster } from "react-hot-toast";
+import useSEO from "../hooks/useSEO";
 import {
   FiPlus, FiLogOut, FiUsers, FiHome,
   FiShoppingBag, FiMap, FiTrash2, FiMoreVertical,
@@ -31,6 +32,7 @@ export default function Dashboard() {
   const { user }  = useSelector(state => state.auth);
   const dispatch  = useDispatch();
   const navigate  = useNavigate();
+  useSEO('My Groups – Dashboard', 'Manage all your expense groups. Track shared bills, view balances, and settle debts with your friends and family on SplitKaro.');
 
   const [groups,       setGroups]       = useState([]);
   const [loading,      setLoading]      = useState(true);
