@@ -85,6 +85,7 @@ const keys = {
   userGroups:  (userId)            => `groups:user:${userId}`,
   expenses:    (groupId, userId)   => `expenses:group:${groupId}:user:${userId}`,  // ✅ userId add
   summary:     (groupId, userId)   => `summary:group:${groupId}:user:${userId}`,   // ✅ userId add
+  settlements: (groupId)           => `settlements:group:${groupId}`,
   history:     (groupId)           => `history:group:${groupId}`,                  // ✅ same rehne do
 };
 
@@ -104,6 +105,7 @@ async function invalidateGroup(groupId, userId) {
     promises.push(
       delPattern(`expenses:group:${groupId}:user:*`),  // sab users ka expenses cache clear
       delPattern(`summary:group:${groupId}:user:*`),   // sab users ka summary cache clear
+      delCache(keys.settlements(groupId)),
     );
   }
 

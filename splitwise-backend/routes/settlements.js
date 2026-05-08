@@ -18,7 +18,7 @@ async function markSplitsSettled(expenseIds, userId, settled) {
   }
 }
 
-async function validateRelatedExpenses(relatedExpenses, groupId, payerId, payeeId) {
+async function validateRelatedExpenses(relatedExpenses, groupId, payerId, payeeId, options = {}) {
   if (!relatedExpenses || !Array.isArray(relatedExpenses) || relatedExpenses.length === 0) return [];
 
   const validExpenseIds = [];
@@ -36,10 +36,26 @@ async function validateRelatedExpenses(relatedExpenses, groupId, payerId, payeeI
       const err = new Error('Related expense must be paid by the receiver');
       err.status = 400; throw err;
     }
-    const payerInSplit = expense.splits.some(split => split.user.toString() === payerId.toString());
-    if (!payerInSplit) {
+    const payerSplit = expense.splits.find(split => split.user.toString() === payerId.toString());
+    if (!payerSplit) {
       const err = new Error('Payer must be included in the related expense split');
       err.status = 400; throw err;
+    }
+    if (options.requireUnsettled && payerSplit.settled) {
+      const err = new Error('This split is already marked as paid');
+      err.status = 409; throw err;
+    }
+    if (options.preventDuplicateSettlement) {
+      const duplicate = await Settlement.exists({
+        group: groupId,
+        paidBy: payerId,
+        paidTo: payeeId,
+        relatedExpenses: expense._id
+      });
+      if (duplicate) {
+        const err = new Error('A payment is already recorded for this split');
+        err.status = 409; throw err;
+      }
     }
     validExpenseIds.push(expense._id);
   }
@@ -71,9 +87,15 @@ router.post('/', auth, async (req, res) => {
 
     let expenseIds = [];
     if (relatedExpenses && Array.isArray(relatedExpenses)) {
-      expenseIds = await validateRelatedExpenses(relatedExpenses, groupId, payerId, paidTo);
+      expenseIds = await validateRelatedExpenses(relatedExpenses, groupId, payerId, paidTo, {
+        requireUnsettled: true,
+        preventDuplicateSettlement: true
+      });
     } else if (relatedExpense) {
-      expenseIds = await validateRelatedExpenses([relatedExpense], groupId, payerId, paidTo);
+      expenseIds = await validateRelatedExpenses([relatedExpense], groupId, payerId, paidTo, {
+        requireUnsettled: true,
+        preventDuplicateSettlement: true
+      });
     }
 
     const settlement = new Settlement({
@@ -178,7 +200,7 @@ router.post('/', auth, async (req, res) => {
 // ─── GET /api/settlements/group/:groupId ──────────────────────────────────────
 router.get('/group/:groupId', auth, async (req, res) => {
   try {
-    const cacheKey = `settlements:group:${req.params.groupId}`;
+    const cacheKey = keys.settlements(req.params.groupId);
 
     const cached = await getCache(cacheKey);
     if (cached) return res.json(cached);
