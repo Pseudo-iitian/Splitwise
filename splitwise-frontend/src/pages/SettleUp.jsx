@@ -66,7 +66,8 @@ export default function SettleUp() {
     });
     setPaidTo(debt);
     setAmount(debt.amount.toFixed(2));
-    setSelectedExpenseIds([]);
+    // Pre-select all related expenses by default
+    setSelectedExpenseIds(debt.expenses?.map(e => e.id) || []);
     setStep("amount");
   };
 
@@ -134,7 +135,8 @@ export default function SettleUp() {
       Math.max(member.amount || 0, 0),
     );
     setAmount(suggestedAmount > 0 ? suggestedAmount.toFixed(2) : "");
-    setSelectedExpenseIds([]);
+    // Pre-select all related expenses by default
+    setSelectedExpenseIds(member.expenses?.map(e => e.id) || []);
     setStep("amount");
   };
 
