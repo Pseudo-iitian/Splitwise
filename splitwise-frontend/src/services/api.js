@@ -59,6 +59,17 @@ export const getChatMessages = (groupId) =>
 export const sendChatMessage = (groupId, data) => 
   api.post(`/groups/${groupId}/chat`, data);
 
+export const sendChatMedia = (groupId, formData) =>
+  api.post(`/groups/${groupId}/chat/media`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
+export const createPoll = (groupId, data) =>
+  api.post(`/groups/${groupId}/chat/poll`, data);
+
+export const voteOnPoll = (groupId, messageId, optionIndex) =>
+  api.patch(`/groups/${groupId}/chat/${messageId}/vote`, { optionIndex });
+
 export const deleteChatMessage = (groupId, messageId) => 
   api.delete(`/groups/${groupId}/chat/${messageId}`);
 

@@ -16,6 +16,9 @@ import {
   getChatMessages,
   sendChatMessage,
   deleteChatMessage,
+  sendChatMedia,
+  createPoll,
+  voteOnPoll,
 } from "../services/api";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -36,6 +39,14 @@ import {
   FiCheck,
   FiSend,
   FiMessageCircle,
+  FiImage,
+  FiVideo,
+  FiFile,
+  FiMic,
+  FiMicOff,
+  FiBarChart2,
+  FiDownload,
+  FiPaperclip,
 } from "react-icons/fi";
 
 const getCatEmoji = (cat) => {
@@ -115,6 +126,25 @@ export default function GroupDetail() {
   const chatInputRef = useRef(null);
   const pusherRef = useRef(null);
 
+  // ── Attachment menu ───────────────────────────────────────────────────────
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const imageInputRef = useRef(null);
+  const videoInputRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // ── Audio recording ───────────────────────────────────────────────────────
+  const [recordingAudio, setRecordingAudio] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+
+  // ── Poll modal ────────────────────────────────────────────────────────────
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollCreating, setPollCreating] = useState(false);
+
   useEffect(() => {
     fetchAll();
   }, []);
@@ -142,6 +172,10 @@ export default function GroupDetail() {
 
     channel.bind("delete-message", ({ messageId }) => {
       setChatMessages((prev) => prev.filter((m) => m._id !== messageId));
+    });
+
+    channel.bind("poll-update", (updatedMsg) => {
+      setChatMessages((prev) => prev.map((m) => m._id === updatedMsg._id ? updatedMsg : m));
     });
 
     return () => {
@@ -199,10 +233,86 @@ export default function GroupDetail() {
   const handleDeleteMessage = async (msgId) => {
     try {
       await deleteChatMessage(groupId, msgId);
-      // Pusher will update via delete-message event
     } catch (err) {
       toast.error(err.response?.data?.error || "Cannot delete");
     }
+  };
+
+  // ── Send media file ───────────────────────────────────────────────────────
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = null; // reset input
+    setShowAttachMenu(false);
+    setChatSending(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await sendChatMedia(groupId, fd);
+    } catch {
+      toast.error('Failed to send file');
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  // ── Audio recording ───────────────────────────────────────────────────────
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mr = new MediaRecorder(stream);
+      mediaRecorderRef.current = mr;
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([blob], `audio-${Date.now()}.webm`, { type: 'audio/webm' });
+        setChatSending(true);
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          await sendChatMedia(groupId, fd);
+        } catch { toast.error('Failed to send audio'); }
+        finally { setChatSending(false); }
+      };
+      mr.start();
+      setRecordingAudio(true);
+      setRecordingTime(0);
+      recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+    } catch {
+      toast.error('Microphone access denied');
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    clearInterval(recordingTimerRef.current);
+    setRecordingAudio(false);
+    setRecordingTime(0);
+  };
+
+  // ── Poll create ───────────────────────────────────────────────────────────
+  const handleCreatePoll = async () => {
+    if (!pollQuestion.trim()) return toast.error('Enter a question');
+    const opts = pollOptions.filter(o => o.trim());
+    if (opts.length < 2) return toast.error('Add at least 2 options');
+    setPollCreating(true);
+    try {
+      await createPoll(groupId, { question: pollQuestion.trim(), options: opts });
+      setShowPollModal(false);
+      setPollQuestion('');
+      setPollOptions(['', '']);
+    } catch { toast.error('Failed to create poll'); }
+    finally { setPollCreating(false); }
+  };
+
+  // ── Poll vote ─────────────────────────────────────────────────────────────
+  const handleVote = async (msgId, optionIndex) => {
+    try {
+      const res = await voteOnPoll(groupId, msgId, optionIndex);
+      setChatMessages(prev => prev.map(m => m._id === msgId ? res.data : m));
+    } catch { toast.error('Vote failed'); }
   };
 
   const fetchAll = async () => {
@@ -1008,18 +1118,68 @@ export default function GroupDetail() {
                       const senderId = msg.sender?._id || msg.sender;
                       const isMe = senderId === user?.id;
                       const prevMsg = idx > 0 ? msgs[idx - 1] : null;
-                      const prevSenderId =
-                        prevMsg?.sender?._id || prevMsg?.sender;
+                      const prevSenderId = prevMsg?.sender?._id || prevMsg?.sender;
                       const showAvatar = !isMe && prevSenderId !== senderId;
-                      const showName =
-                        !isMe && (idx === 0 || prevSenderId !== senderId);
+                      const showName = !isMe && (idx === 0 || prevSenderId !== senderId);
+
+                      // ── Message content renderer ──
+                      const renderContent = () => {
+                        if (msg.type === 'image') return (
+                          <img src={msg.fileUrl} alt="image" className="max-w-[220px] rounded-xl cursor-pointer" onClick={() => window.open(msg.fileUrl, '_blank')} />
+                        );
+                        if (msg.type === 'video') return (
+                          <video src={msg.fileUrl} controls className="max-w-[220px] rounded-xl" />
+                        );
+                        if (msg.type === 'audio') return (
+                          <audio src={msg.fileUrl} controls className="max-w-[220px]" />
+                        );
+                        if (msg.type === 'file') return (
+                          <a href={msg.fileUrl} target="_blank" rel="noreferrer"
+                            className="flex items-center gap-2 text-sm underline">
+                            <FiFile size={16} />
+                            <span className="truncate max-w-[160px]">{msg.fileName || 'Download file'}</span>
+                            <FiDownload size={14} />
+                          </a>
+                        );
+                        if (msg.type === 'poll') {
+                          const totalVotes = msg.poll?.options?.reduce((s, o) => s + (o.votes?.length || 0), 0) || 0;
+                          const myVote = msg.poll?.options?.findIndex(o => o.votes?.some(v => (v._id || v) === user?.id));
+                          return (
+                            <div className="min-w-[200px]">
+                              <p className="font-semibold text-sm mb-3 flex items-center gap-1.5">
+                                <FiBarChart2 size={14} className="shrink-0" />
+                                {msg.poll?.question}
+                              </p>
+                              <div className="space-y-2">
+                                {msg.poll?.options?.map((opt, oi) => {
+                                  const pct = totalVotes > 0 ? Math.round((opt.votes?.length || 0) / totalVotes * 100) : 0;
+                                  const voted = myVote === oi;
+                                  return (
+                                    <button key={oi} onClick={() => handleVote(msg._id, oi)}
+                                      className={`w-full text-left rounded-xl overflow-hidden border transition ${
+                                        voted ? 'border-emerald-500' : 'border-gray-600 hover:border-gray-400'
+                                      }`}>
+                                      <div className="relative px-3 py-2">
+                                        <div className="absolute inset-0 bg-emerald-500/20 transition-all" style={{ width: `${pct}%` }} />
+                                        <div className="relative flex justify-between items-center">
+                                          <span className="text-xs font-medium">{opt.text}</span>
+                                          <span className="text-xs text-gray-400 ml-2">{pct}%</span>
+                                        </div>
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-xs text-gray-400 mt-2">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
+                            </div>
+                          );
+                        }
+                        return <p className="break-words">{msg.message}</p>;
+                      };
 
                       return (
-                        <div
-                          key={msg._id}
-                          className={`flex items-end gap-2 mb-1 group ${isMe ? "flex-row-reverse" : "flex-row"}`}
-                        >
-                          {/* Avatar placeholder for alignment */}
+                        <div key={msg._id}
+                          className={`flex items-end gap-2 mb-1 group ${isMe ? "flex-row-reverse" : "flex-row"}`}>
                           <div className="w-7 shrink-0">
                             {showAvatar && !isMe && (
                               <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-300">
@@ -1027,38 +1187,29 @@ export default function GroupDetail() {
                               </div>
                             )}
                           </div>
-
-                          <div
-                            className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col`}
-                          >
-                            {/* Sender name */}
+                          <div className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col`}>
                             {showName && (
-                              <p className="text-xs text-gray-500 mb-1 px-1">
-                                {msg.sender?.name}
-                              </p>
+                              <p className="text-xs text-gray-500 mb-1 px-1">{msg.sender?.name}</p>
                             )}
-
-                            <div
-                              className={`relative px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                                isMe
-                                  ? "bg-emerald-600 text-white rounded-br-md"
-                                  : "bg-gray-800 text-gray-100 rounded-bl-md"
-                              }`}
-                            >
-                              <p className="break-words">{msg.message}</p>
-                              <p
-                                className={`text-xs mt-1 ${isMe ? "text-emerald-200" : "text-gray-500"}`}
-                              >
-                                {formatTime(msg.createdAt)}
-                              </p>
-
-                              {/* Delete button — only for own messages */}
+                            <div className={`relative rounded-2xl text-sm leading-relaxed ${
+                              msg.type === 'poll'
+                                ? (isMe ? 'bg-emerald-900/60 text-white px-4 py-3 rounded-br-md' : 'bg-gray-800 text-gray-100 px-4 py-3 rounded-bl-md')
+                                : msg.type === 'image' || msg.type === 'video'
+                                  ? 'overflow-hidden'
+                                  : (isMe ? 'bg-emerald-600 text-white px-4 py-2.5 rounded-br-md' : 'bg-gray-800 text-gray-100 px-4 py-2.5 rounded-bl-md')
+                            }`}>
+                              {renderContent()}
+                              {msg.type !== 'poll' && (
+                                <p className={`text-xs mt-1 ${
+                                  msg.type === 'image' || msg.type === 'video'
+                                    ? 'px-2 pb-1 text-gray-300'
+                                    : isMe ? 'text-emerald-200' : 'text-gray-500'
+                                }`}>{formatTime(msg.createdAt)}</p>
+                              )}
                               {isMe && (
-                                <button
-                                  onClick={() => handleDeleteMessage(msg._id)}
+                                <button onClick={() => handleDeleteMessage(msg._id)}
                                   className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-red-500 text-white hidden group-hover:flex items-center justify-center transition"
-                                  title="Delete message"
-                                >
+                                  title="Delete">
                                   <FiX size={10} />
                                 </button>
                               )}
@@ -1073,27 +1224,73 @@ export default function GroupDetail() {
               <div ref={chatEndRef} />
             </div>
 
+            {/* ── Hidden file inputs ───────────────────────────── */}
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleFileSelect} />
+            <input ref={fileInputRef}  type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" className="hidden" onChange={handleFileSelect} />
+
             {/* ── Input bar ────────────────────────────────────── */}
             <div className="border-t border-gray-800 py-3 bg-gray-950">
-              <form
-                onSubmit={handleSendMessage}
-                className="flex items-center gap-3"
-              >
-                <input
-                  ref={chatInputRef}
-                  type="text"
-                  value={chatInput}
+              {/* Attachment popup menu */}
+              {showAttachMenu && (
+                <div className="mb-3 p-2 bg-gray-900 border border-gray-700 rounded-2xl flex gap-2 flex-wrap">
+                  {[
+                    { icon: <FiImage size={18} />, label: 'Image', color: 'text-blue-400', action: () => { setShowAttachMenu(false); imageInputRef.current?.click(); } },
+                    { icon: <FiVideo size={18} />, label: 'Video', color: 'text-purple-400', action: () => { setShowAttachMenu(false); videoInputRef.current?.click(); } },
+                    { icon: <FiFile size={18} />,  label: 'Document', color: 'text-yellow-400', action: () => { setShowAttachMenu(false); fileInputRef.current?.click(); } },
+                    { icon: <FiBarChart2 size={18} />, label: 'Poll', color: 'text-emerald-400', action: () => { setShowAttachMenu(false); setShowPollModal(true); } },
+                  ].map(({ icon, label, color, action }) => (
+                    <button key={label} onClick={action}
+                      className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 transition ${color}`}>
+                      {icon}
+                      <span className="text-xs text-gray-300">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Recording indicator */}
+              {recordingAudio && (
+                <div className="mb-2 flex items-center gap-2 text-red-400 text-sm">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                  Recording... {recordingTime}s
+                </div>
+              )}
+
+              <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                {/* + Attach button */}
+                <button type="button"
+                  onClick={() => setShowAttachMenu(v => !v)}
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center transition shrink-0 ${
+                    showAttachMenu ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}>
+                  <FiPlus size={18} className={`transition-transform ${showAttachMenu ? 'rotate-45' : ''}`} />
+                </button>
+
+                {/* Text input */}
+                <input ref={chatInputRef} type="text" value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-gray-900 border border-gray-700 text-white rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 transition placeholder-gray-600"
+                  placeholder={recordingAudio ? 'Recording audio...' : 'Type a message...'}
+                  disabled={recordingAudio}
+                  className="flex-1 bg-gray-900 border border-gray-700 text-white rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 transition placeholder-gray-600 disabled:opacity-50"
                   maxLength={1000}
                 />
-                <button
-                  type="submit"
-                  disabled={!chatInput.trim() || chatSending}
-                  className="w-11 h-11 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center transition shrink-0"
-                >
-                  <FiSend size={16} />
+
+                {/* Mic button */}
+                <button type="button"
+                  onClick={recordingAudio ? stopRecording : startRecording}
+                  disabled={chatSending}
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center transition shrink-0 disabled:opacity-40 ${
+                    recordingAudio ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}>
+                  {recordingAudio ? <FiMicOff size={16} /> : <FiMic size={16} />}
+                </button>
+
+                {/* Send button */}
+                <button type="submit"
+                  disabled={!chatInput.trim() || chatSending || recordingAudio}
+                  className="w-10 h-10 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center transition shrink-0">
+                  {chatSending ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <FiSend size={16} />}
                 </button>
               </form>
             </div>
@@ -1103,6 +1300,76 @@ export default function GroupDetail() {
           <SpendingTab expenses={expenses} groupMembers={groupMembers} />
         ) : null}
       </div>
+
+      {/* ══ POLL MODAL ══════════════════════════════════════════════ */}
+      {showPollModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 px-4 pb-4 sm:pb-0">
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <FiBarChart2 className="text-emerald-400" /> Create Poll
+              </h2>
+              <button onClick={() => setShowPollModal(false)} className="text-gray-400 hover:text-white transition">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block">Question</label>
+                <input
+                  type="text"
+                  value={pollQuestion}
+                  onChange={e => setPollQuestion(e.target.value)}
+                  placeholder="Ask something..."
+                  className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition"
+                  maxLength={200}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 mb-2 block">Options</label>
+                <div className="space-y-2">
+                  {pollOptions.map((opt, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input
+                        type="text"
+                        value={opt}
+                        onChange={e => {
+                          const copy = [...pollOptions];
+                          copy[i] = e.target.value;
+                          setPollOptions(copy);
+                        }}
+                        placeholder={`Option ${i + 1}`}
+                        className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition"
+                        maxLength={100}
+                      />
+                      {pollOptions.length > 2 && (
+                        <button onClick={() => setPollOptions(pollOptions.filter((_, j) => j !== i))}
+                          className="text-gray-500 hover:text-red-400 transition">
+                          <FiX size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {pollOptions.length < 6 && (
+                  <button onClick={() => setPollOptions([...pollOptions, ''])}
+                    className="mt-2 text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition">
+                    <FiPlus size={12} /> Add option
+                  </button>
+                )}
+              </div>
+
+              <button onClick={handleCreatePoll} disabled={pollCreating}
+                className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl font-semibold transition flex items-center justify-center gap-2">
+                {pollCreating ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <FiBarChart2 size={16} />}
+                {pollCreating ? 'Creating...' : 'Create Poll'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ══ IMPORT FROM WISHLIST MODAL ══════════════════════════════ */}
       {wishlistModal && (
