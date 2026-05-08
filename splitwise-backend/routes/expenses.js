@@ -29,6 +29,20 @@ async function attachSplitSettlementStatus(expenses) {
   });
 }
 
+function preserveSettledSplits(newSplits = [], existingSplits = []) {
+  const settledByUser = new Map(
+    existingSplits.map(split => [
+      split.user?._id?.toString() || split.user?.toString(),
+      !!split.settled,
+    ])
+  );
+
+  return newSplits.map(split => {
+    const userId = split.user?._id?.toString() || split.user?.toString();
+    return { ...split, settled: settledByUser.get(userId) || false };
+  });
+}
+
 // ─── POST /api/expenses — Add expense ────────────────────────────────────────
 router.post('/', auth, async (req, res) => {
   try {
@@ -123,7 +137,15 @@ router.put('/:expenseId', auth, async (req, res) => {
     else if (splitType === 'percentage') computedSplits = splitByPercentage(amount, splits);
     else if (splitType === 'exact')      computedSplits = splitByExact(splits);
 
-    const updateData = { description, amount, splitType, splits: computedSplits };
+    const existingExpense = await Expense.findById(req.params.expenseId);
+    if (!existingExpense) return res.status(404).json({ msg: 'Expense not found' });
+
+    const updateData = {
+      description,
+      amount,
+      splitType,
+      splits: preserveSettledSplits(computedSplits, existingExpense.splits),
+    };
     if (paidByMultiple?.length > 0) {
       updateData.paidByMultiple = paidByMultiple;
       updateData.paidBy         = paidByMultiple[0].user;
@@ -136,8 +158,6 @@ router.put('/:expenseId', auth, async (req, res) => {
       .populate('paidBy',             'name email')
       .populate('paidByMultiple.user','name email')
       .populate('splits.user',        'name email');
-
-    if (!expense) return res.status(404).json({ msg: 'Expense not found' });
 
     await logActivity({
       groupId: expense.group, userId: req.user.id,

@@ -141,6 +141,11 @@ export default function EditExpense() {
     }
   };
 
+  const isAlreadyPaidError = (err) => {
+    const message = err.response?.data?.msg || err.response?.data?.error || '';
+    return err.response?.status === 409 && /already .*paid|already recorded|already marked as paid/i.test(message);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.description || !form.amount) {
@@ -199,6 +204,9 @@ export default function EditExpense() {
                 amount: split.amount,
                 relatedExpenses: [expenseId],
                 isExpenseUpdate: true
+              }).catch(err => {
+                if (isAlreadyPaidError(err)) return null;
+                throw err;
               })
             );
           }

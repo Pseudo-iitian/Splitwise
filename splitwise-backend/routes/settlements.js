@@ -18,6 +18,37 @@ async function markSplitsSettled(expenseIds, userId, settled) {
   }
 }
 
+async function markLinkedExpenseSettled(expenseId, payerId, payeeId) {
+  const exp = await Expense.findById(expenseId);
+  if (!exp) return;
+
+  const expPayerId = exp.paidBy?.toString();
+  if (expPayerId === payeeId.toString()) {
+    await Expense.updateOne(
+      { _id: expenseId, 'splits.user': payerId },
+      { $set: { 'splits.$.settled': true } }
+    );
+  }
+  if (expPayerId === payerId.toString()) {
+    await Expense.updateOne(
+      { _id: expenseId, 'splits.user': payeeId },
+      { $set: { 'splits.$.settled': true } }
+    );
+  }
+}
+
+async function findDuplicateSettlement(groupId, payerId, payeeId, expenseId) {
+  return Settlement.findOne({
+    group: groupId,
+    paidBy: payerId,
+    paidTo: payeeId,
+    $or: [
+      { relatedExpenses: expenseId },
+      { relatedExpense: expenseId },
+    ],
+  });
+}
+
 async function validateRelatedExpenses(relatedExpenses, groupId, payerId, payeeId, options = {}) {
   if (!relatedExpenses || !Array.isArray(relatedExpenses) || relatedExpenses.length === 0) return [];
 
@@ -46,12 +77,7 @@ async function validateRelatedExpenses(relatedExpenses, groupId, payerId, payeeI
       err.status = 409; throw err;
     }
     if (options.preventDuplicateSettlement) {
-      const duplicate = await Settlement.exists({
-        group: groupId,
-        paidBy: payerId,
-        paidTo: payeeId,
-        relatedExpenses: expense._id
-      });
+      const duplicate = await findDuplicateSettlement(groupId, payerId, payeeId, expense._id);
       if (duplicate) {
         const err = new Error('A payment is already recorded for this split');
         err.status = 409; throw err;
@@ -85,6 +111,39 @@ router.post('/', auth, async (req, res) => {
     if (payerId === paidTo)
       return res.status(400).json({ msg: 'Payer and receiver cannot be same' });
 
+    const requestedExpenseIds = relatedExpenses && Array.isArray(relatedExpenses)
+      ? relatedExpenses
+      : relatedExpense
+        ? [relatedExpense]
+        : [];
+
+    if (requestedExpenseIds.length > 0) {
+      const duplicates = [];
+      for (const expenseId of requestedExpenseIds) {
+        const duplicate = await findDuplicateSettlement(groupId, payerId, paidTo, expenseId);
+        if (!duplicate) break;
+        duplicates.push({ expenseId, settlement: duplicate });
+      }
+
+      if (duplicates.length === requestedExpenseIds.length) {
+        for (const { expenseId } of duplicates) {
+          await markLinkedExpenseSettled(expenseId, payerId, paidTo);
+        }
+        await invalidateGroup(groupId, req.user.id);
+
+        const populatedSettlement = await Settlement.findById(duplicates[0].settlement._id).populate([
+          { path: 'paidBy',            select: 'name email' },
+          { path: 'paidTo',            select: 'name email' },
+          { path: 'relatedExpenses',   select: 'description amount' },
+          { path: 'relatedExpense',    select: 'description amount' },
+        ]);
+
+        const payload = populatedSettlement.toObject();
+        payload.alreadyRecorded = true;
+        return res.status(200).json(payload);
+      }
+    }
+
     let expenseIds = [];
     if (relatedExpenses && Array.isArray(relatedExpenses)) {
       expenseIds = await validateRelatedExpenses(relatedExpenses, groupId, payerId, paidTo, {
@@ -107,21 +166,7 @@ router.post('/', auth, async (req, res) => {
 
     // ✅ Mark payer's splits as settled in all linked expenses
     for (const expId of expenseIds) {
-      const exp = await Expense.findById(expId);
-      if (!exp) continue;
-      const expPayerId = exp.paidBy?.toString();
-      if (expPayerId === paidTo.toString()) {
-        await Expense.updateOne(
-          { _id: expId, 'splits.user': payerId },
-          { $set: { 'splits.$.settled': true } }
-        );
-      }
-      if (expPayerId === payerId.toString()) {
-        await Expense.updateOne(
-          { _id: expId, 'splits.user': paidTo },
-          { $set: { 'splits.$.settled': true } }
-        );
-      }
+      await markLinkedExpenseSettled(expId, payerId, paidTo);
     }
 
     // ✅ NET-SETTLEMENT OFFSET LOGIC
