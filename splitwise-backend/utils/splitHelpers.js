@@ -64,23 +64,30 @@ async function calculateBalances(groupId) {
 }
 
 async function calculateDetailedBalances(groupId) {
-  const group = await Group.findById(groupId).populate('members', 'name email upiId upiVerified');
+  const group = await Group.findById(groupId).populate('members', 'name email upiId upiVerified upiVerificationStatus');
   const expenses    = await Expense.find({ group: groupId }).populate('splits.user paidBy paidByMultiple.user');
   const settlements = await Settlement.find({ group: groupId }).populate('paidBy paidTo');
 
-  const balances = {}; // { userId: { amount, name, email, upiId, upiVerified } }
+  const balances = {}; // { userId: { amount, name, email, upiId, upiVerified, upiVerificationStatus } }
 
-  const ensureUser = (id, name, email, upiId, upiVerified) => {
+  const ensureUser = (id, name, email, upiId, upiVerified, upiVerificationStatus) => {
     if (!id) return;
-    if (!balances[id]) balances[id] = { amount: 0, name, email, upiId, upiVerified };
+    if (!balances[id]) balances[id] = { amount: 0, name, email, upiId, upiVerified, upiVerificationStatus };
   };
 
   group?.members?.forEach(member => {
-    ensureUser(member._id.toString(), member.name, member.email, member.upiId, member.upiVerified);
+    ensureUser(
+      member._id.toString(),
+      member.name,
+      member.email,
+      member.upiId,
+      member.upiVerified,
+      member.upiVerificationStatus,
+    );
   });
 
-  const addAmount = (id, name, email, amount, upiId, upiVerified) => {
-    ensureUser(id, name, email, upiId, upiVerified);
+  const addAmount = (id, name, email, amount, upiId, upiVerified, upiVerificationStatus) => {
+    ensureUser(id, name, email, upiId, upiVerified, upiVerificationStatus);
     balances[id].amount = +(balances[id].amount + amount).toFixed(2);
   };
 
@@ -89,28 +96,68 @@ async function calculateDetailedBalances(groupId) {
       exp.paidByMultiple.forEach(payer => {
         if (!payer.user) return;
         const pId = payer.user._id ? payer.user._id.toString() : payer.user.toString();
-        addAmount(pId, payer.user.name, payer.user.email, payer.amount, payer.user.upiId, payer.user.upiVerified);
+        addAmount(
+          pId,
+          payer.user.name,
+          payer.user.email,
+          payer.amount,
+          payer.user.upiId,
+          payer.user.upiVerified,
+          payer.user.upiVerificationStatus,
+        );
       });
     } else if (exp.paidBy) {
       const paidById    = exp.paidBy._id.toString();
       const paidByName  = exp.paidBy.name;
       const paidByEmail = exp.paidBy.email;
-      addAmount(paidById, paidByName, paidByEmail, exp.amount, exp.paidBy.upiId, exp.paidBy.upiVerified);
+      addAmount(
+        paidById,
+        paidByName,
+        paidByEmail,
+        exp.amount,
+        exp.paidBy.upiId,
+        exp.paidBy.upiVerified,
+        exp.paidBy.upiVerificationStatus,
+      );
     }
 
     exp.splits.forEach(split => {
       const uid    = split.user._id.toString();
       const uname  = split.user.name;
       const uemail = split.user.email;
-      addAmount(uid, uname, uemail, -split.amount, split.user.upiId, split.user.upiVerified);
+      addAmount(
+        uid,
+        uname,
+        uemail,
+        -split.amount,
+        split.user.upiId,
+        split.user.upiVerified,
+        split.user.upiVerificationStatus,
+      );
     });
   });
 
   settlements.forEach(s => {
     const payerId   = s.paidBy._id.toString();
     const payeeId   = s.paidTo._id.toString();
-    addAmount(payerId, s.paidBy.name, s.paidBy.email, s.amount, s.paidBy.upiId, s.paidBy.upiVerified);
-    addAmount(payeeId, s.paidTo.name, s.paidTo.email, -s.amount, s.paidTo.upiId, s.paidTo.upiVerified);
+    addAmount(
+      payerId,
+      s.paidBy.name,
+      s.paidBy.email,
+      s.amount,
+      s.paidBy.upiId,
+      s.paidBy.upiVerified,
+      s.paidBy.upiVerificationStatus,
+    );
+    addAmount(
+      payeeId,
+      s.paidTo.name,
+      s.paidTo.email,
+      -s.amount,
+      s.paidTo.upiId,
+      s.paidTo.upiVerified,
+      s.paidTo.upiVerificationStatus,
+    );
   });
 
   return balances;
@@ -156,7 +203,7 @@ function simplifyBalances(balances) {
       };
 
       // Add UPI link if creditor has verified UPI ID
-      if (suggestion.paidTo.upiVerified && suggestion.paidTo.upiId) {
+      if (suggestion.paidTo.upiId && suggestion.paidTo.upiVerificationStatus !== 'none') {
         suggestion.upiLink = generateUPILink(
           suggestion.paidTo.upiId,
           suggestion.paidTo.name,
@@ -180,9 +227,9 @@ function simplifyBalances(balances) {
 
 async function calculateUserDebts(groupId, userId) {
   const expenses = await Expense.find({ group: groupId })
-    .populate('paidBy', 'name email upiId upiVerified')
-    .populate('paidByMultiple.user', 'name email upiId upiVerified')
-    .populate('splits.user', 'name email upiId upiVerified');
+    .populate('paidBy', 'name email upiId upiVerified upiVerificationStatus')
+    .populate('paidByMultiple.user', 'name email upiId upiVerified upiVerificationStatus')
+    .populate('splits.user', 'name email upiId upiVerified upiVerificationStatus');
     
   const settlements = await Settlement.find({ group: groupId })
     .populate('paidBy', 'name email')
@@ -205,6 +252,7 @@ async function calculateUserDebts(groupId, userId) {
         email: person.email,
         upiId: person.upiId,
         upiVerified: person.upiVerified,
+        upiVerificationStatus: person.upiVerificationStatus,
         amount: 0,
         expenses: [],        // current user owes them ke liye
         creditsFromThem: [], // ✅ they owe current user ke liye (new)

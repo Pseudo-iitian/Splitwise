@@ -134,13 +134,13 @@ router.post('/', auth, async (req, res) => {
 
         const populatedSettlement = await Settlement.findById(duplicates[0].settlement._id).populate([
           { path: 'paidBy',            select: 'name email' },
-          { path: 'paidTo',            select: 'name email upiId upiVerified' },
+          { path: 'paidTo',            select: 'name email upiId upiVerified upiVerificationStatus' },
           { path: 'relatedExpenses',   select: 'description amount' },
           { path: 'relatedExpense',    select: 'description amount' },
         ]);
 
-        // Add UPI payment link if payee has verified UPI ID
-        if (populatedSettlement.paidTo.upiVerified && populatedSettlement.paidTo.upiId) {
+        // Add UPI payment link if payee has a valid UPI handle
+        if (populatedSettlement.paidTo.upiId && populatedSettlement.paidTo.upiVerificationStatus !== 'none') {
           populatedSettlement._doc.upiLink = generateUPILink(
             populatedSettlement.paidTo.upiId,
             populatedSettlement.paidTo.name,
@@ -230,12 +230,12 @@ router.post('/', auth, async (req, res) => {
 
     const populatedSettlement = await Settlement.findById(settlement._id).populate([
       { path: 'paidBy',            select: 'name email' },
-      { path: 'paidTo',            select: 'name email upiId upiVerified' },
+      { path: 'paidTo',            select: 'name email upiId upiVerified upiVerificationStatus' },
       { path: 'relatedExpenses',   select: 'description amount' },
     ]);
 
-    // Add UPI payment link if payee has verified UPI ID
-    if (populatedSettlement.paidTo.upiVerified && populatedSettlement.paidTo.upiId) {
+    // Add UPI payment link if payee has a usable UPI ID
+    if (populatedSettlement.paidTo.upiId && populatedSettlement.paidTo.upiVerificationStatus !== 'none') {
       populatedSettlement._doc.upiLink = generateUPILink(
         populatedSettlement.paidTo.upiId,
         populatedSettlement.paidTo.name,
@@ -273,14 +273,14 @@ router.get('/group/:groupId', auth, async (req, res) => {
 
     const settlements = await Settlement.find({ group: req.params.groupId })
       .populate('paidBy',          'name email')
-      .populate('paidTo',          'name email upiId upiVerified')
+      .populate('paidTo',          'name email upiId upiVerified upiVerificationStatus')
       .populate('relatedExpense',  'description amount splits paidBy')  // ✅ splits add
       .populate('relatedExpenses', 'description amount splits paidBy')  // ✅ splits add
       .sort({ date: -1 });
 
     // Add UPI links to settlements
     settlements.forEach(settlement => {
-      if (settlement.paidTo.upiVerified && settlement.paidTo.upiId) {
+      if (settlement.paidTo.upiId && settlement.paidTo.upiVerificationStatus !== 'none') {
         settlement._doc.upiLink = generateUPILink(
           settlement.paidTo.upiId,
           settlement.paidTo.name,

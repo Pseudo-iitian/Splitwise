@@ -147,7 +147,7 @@ export default function Dashboard() {
                       <p className="text-xs text-gray-400 truncate">{user?.email}</p>
                       {user?.upiId && (
                         <p className="text-xs text-emerald-400 truncate flex items-center gap-1 mt-0.5">
-                          {user?.upiVerified ? '✅' : '⚠️'} {user.upiId}
+                          {user?.upiVerificationStatus === 'verified' ? '✅' : user?.upiVerificationStatus === 'formatOnly' ? '⚠️' : '⚠️'} {user.upiId}
                         </p>
                       )}
                     </div>

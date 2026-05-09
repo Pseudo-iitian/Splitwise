@@ -122,7 +122,7 @@ export default function SettleUp() {
       toast.error("Enter a valid amount");
       return;
     }
-    if (!paidTo.upiVerified || !paidTo.upiId) {
+    if (!paidTo.upiId || paidTo.upiVerificationStatus === 'none') {
       toast.error("UPI is not available for this recipient");
       return;
     }
@@ -421,14 +421,21 @@ export default function SettleUp() {
             </button>
 
             {/* UPI payment */}
-            {paidTo?.upiVerified && paidTo?.upiId ? (
-              <button
-                onClick={handlePayWithUpi}
-                disabled={loading}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg flex items-center justify-center gap-2"
-              >
-                📲 Open UPI app
-              </button>
+            {(paidTo?.upiVerified || paidTo?.upiVerificationStatus === 'formatOnly') && paidTo?.upiId ? (
+              <div className="space-y-3">
+                <button
+                  onClick={handlePayWithUpi}
+                  disabled={loading}
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg flex items-center justify-center gap-2"
+                >
+                  📲 Open UPI app
+                </button>
+                {paidTo?.upiVerificationStatus === 'formatOnly' && (
+                  <p className="text-center text-yellow-300 text-sm px-2">
+                    ⚠️ UPI handle format is valid, but this app has not performed provider-level verification.
+                  </p>
+                )}
+              </div>
             ) : (
               <div className="px-4 py-3 rounded-2xl border border-dashed border-gray-700 text-sm text-gray-400 bg-gray-900">
                 UPI not available for this recipient.

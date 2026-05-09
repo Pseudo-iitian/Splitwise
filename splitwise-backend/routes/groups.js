@@ -44,7 +44,7 @@ router.get('/', auth, async (req, res) => {
 
     // 2️⃣ Cache miss — hit DB
     const groups = await Group.find({ members: req.user.id })
-      .populate('members',   'name email upiId upiVerified')
+      .populate('members',   'name email upiId upiVerified upiVerificationStatus')
       .populate('createdBy', 'name email');
 
     // 3️⃣ Store in cache
