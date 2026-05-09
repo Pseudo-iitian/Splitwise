@@ -12,6 +12,7 @@ import EditExpense from './pages/EditExpense';
 import SettleUp    from './pages/SettleUp';
 import Wishlist    from './pages/Wishlist';
 import Profile     from './pages/Profile';
+import VideoRoom   from './pages/VideoRoom';
 
 function PrivateRoute({ children }) {
   const { isLoggedIn } = useSelector(state => state.auth);
@@ -58,6 +59,10 @@ export default function App() {
 
         <Route path="/group/:groupId/settle-up" element={
           <PrivateRoute><SettleUp /></PrivateRoute>
+        }/>
+
+        <Route path="/group/:groupId/video" element={
+          <PrivateRoute><VideoRoom /></PrivateRoute>
         }/>
 
         <Route path="/profile" element={
