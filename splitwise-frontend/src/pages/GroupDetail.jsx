@@ -21,6 +21,8 @@ import {
   voteOnPoll,
   aiAssistExpense,
   sendPaymentReminder,
+  getGroupVideoRoom,
+  createGroupVideoRoom,
 } from "../services/api";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -121,6 +123,10 @@ export default function GroupDetail() {
   const [wishPaidBy, setWishPaidBy] = useState("");
   const [wishImporting, setWishImporting] = useState(false);
   const [groupMembers, setGroupMembers] = useState([]);
+  const [videoRoom, setVideoRoom] = useState(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState("");
+  const [showVideoIframe, setShowVideoIframe] = useState(false);
   const [wishAmount, setWishAmount] = useState("");
 
   // ── Chat state ────────────────────────────────────────────────────────────
@@ -161,6 +167,43 @@ export default function GroupDetail() {
   const [aiPreview, setAiPreview]         = useState(null); // parsed expense to confirm
   const aiChatEndRef                      = useRef(null);
 
+  const fetchVideoRoom = async () => {
+    setVideoError("");
+    setVideoLoading(true);
+    try {
+      const res = await getGroupVideoRoom(groupId);
+      setVideoRoom(res.data);
+    } catch (err) {
+      if (err.response?.status === 404) {
+        setVideoRoom(null);
+      } else {
+        setVideoError(err.response?.data?.error || 'Unable to load video room');
+      }
+    } finally {
+      setVideoLoading(false);
+    }
+  };
+
+  const handleCreateVideoRoom = async () => {
+    setVideoError("");
+    setVideoLoading(true);
+    try {
+      const res = await createGroupVideoRoom(groupId);
+      setVideoRoom(res.data);
+      setShowVideoIframe(true);
+      toast.success('Video room created. Share the invite link with group members.');
+    } catch (err) {
+      setVideoError(err.response?.data?.error || 'Unable to create video room');
+    } finally {
+      setVideoLoading(false);
+    }
+  };
+
+  const copyVideoInvite = async () => {
+    if (!videoRoom?.inviteLink) return;
+    await navigator.clipboard.writeText(videoRoom.inviteLink);
+    toast.success('Invite link copied to clipboard');
+  };
 
   useEffect(() => {
     fetchAll();
@@ -199,6 +242,13 @@ export default function GroupDetail() {
       pusherRef.current?.unsubscribe(`group-${groupId}`);
       pusherRef.current?.disconnect();
     };
+  }, [activeTab, groupId]);
+
+  // ── Load video room when the video tab is opened ───────────────────────────
+  useEffect(() => {
+    if (activeTab === "video") {
+      fetchVideoRoom();
+    }
   }, [activeTab, groupId]);
 
   // ── Auto scroll to bottom ─────────────────────────────────────────────────
@@ -642,7 +692,7 @@ export default function GroupDetail() {
     return acc;
   }, {});
 
-  const TABS = ["expenses", "balances", "history", "chat", "spending", "pay-me"];
+  const TABS = ["expenses", "balances", "history", "chat", "spending", "pay-me", "video"];
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -1470,6 +1520,104 @@ export default function GroupDetail() {
         ) : activeTab === "pay-me" ? (
           /* ── PAY ME TAB ─────────────────────────────────────────── */
           <PayMeTab receivables={receivables} />
+        ) : activeTab === "video" ? (
+          /* ── VIDEO CHAT TAB ─────────────────────────────────────── */
+          <div className="space-y-4 py-6">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Group Video Call</h2>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Free group video chat using Jitsi Meet. Only signed-in group members can create and open the call.
+                  </p>
+                </div>
+                <button
+                  onClick={handleCreateVideoRoom}
+                  disabled={videoLoading}
+                  className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white py-3 px-4 rounded-xl text-sm font-medium transition disabled:opacity-50"
+                >
+                  {videoLoading ? 'Starting call...' : 'Start / Open call'}
+                </button>
+              </div>
+
+              {videoError && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-3 text-sm text-red-200">
+                  {videoError}
+                </div>
+              )}
+
+              {videoRoom ? (
+                <div className="space-y-4">
+                  <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4">
+                    <p className="text-xs text-gray-500 mb-2">Invite link for group members</p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        readOnly
+                        value={videoRoom.inviteLink}
+                        className="flex-1 bg-gray-900 border border-gray-800 text-white rounded-2xl px-4 py-3 text-sm focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={copyVideoInvite}
+                        className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-3 rounded-2xl text-sm font-medium transition"
+                      >
+                        Copy link
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setShowVideoIframe(true)}
+                      className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-2xl text-sm font-medium transition"
+                    >
+                      Join call in app
+                    </button>
+                    <a
+                      href={videoRoom.meetUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center justify-center w-full bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-2xl text-sm font-medium transition"
+                    >
+                      Open in Jitsi
+                    </a>
+                  </div>
+
+                  <div className="rounded-3xl overflow-hidden border border-gray-800 bg-black">
+                    <div className="px-4 py-3 border-b border-gray-800 bg-gray-950 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold">Room: {videoRoom.roomId}</p>
+                        <p className="text-xs text-gray-500">Share only with group members.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowVideoIframe((prev) => !prev)}
+                        className="bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-xs"
+                      >
+                        {showVideoIframe ? 'Hide live view' : 'Show live view'}
+                      </button>
+                    </div>
+                    {showVideoIframe ? (
+                      <iframe
+                        title="Group video call"
+                        src={`https://meet.jit.si/${videoRoom.roomId}`}
+                        className="w-full h-[70vh]"
+                        allow="camera; microphone; fullscreen; display-capture"
+                      />
+                    ) : (
+                      <div className="p-6 text-gray-400 text-sm">
+                        Click <strong>Join call in app</strong> to open the embedded meeting window.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 text-sm text-gray-400">
+                  No active video room exists yet. Click start to create a secure group call.
+                </div>
+              )}
+            </div>
+          </div>
         ) : null}
       </div>
 

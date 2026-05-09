@@ -103,7 +103,53 @@ router.post('/:groupId/invite', auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// ─── POST /api/groups/:groupId/video-room ───────────────────────────────────────
+router.post('/:groupId/video-room', auth, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ msg: 'Group not found' });
+    if (!group.members.some(member => member.toString() === req.user.id)) {
+      return res.status(403).json({ msg: 'Only group members can create a video room' });
+    }
 
+    if (!group.videoRoomId) {
+      group.videoRoomId = `splitwise-${group._id}-${crypto.randomBytes(8).toString('hex')}`;
+      await group.save();
+    }
+
+    const inviteLink = `${process.env.FRONTEND_URL}/group/${group._id}/video`;
+    res.json({
+      roomId: group.videoRoomId,
+      inviteLink,
+      meetUrl: `https://meet.jit.si/${group.videoRoomId}`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/groups/:groupId/video-room ────────────────────────────────────────
+router.get('/:groupId/video-room', auth, async (req, res) => {
+  try {
+    const group = await Group.findById(req.params.groupId);
+    if (!group) return res.status(404).json({ msg: 'Group not found' });
+    if (!group.members.some(member => member.toString() === req.user.id)) {
+      return res.status(403).json({ msg: 'Only group members can view the video room' });
+    }
+    if (!group.videoRoomId) {
+      return res.status(404).json({ msg: 'No active video room yet' });
+    }
+
+    const inviteLink = `${process.env.FRONTEND_URL}/group/${group._id}/video`;
+    res.json({
+      roomId: group.videoRoomId,
+      inviteLink,
+      meetUrl: `https://meet.jit.si/${group.videoRoomId}`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 // ─── POST /api/groups/join/:token ────────────────────────────────────────────
 router.post('/join/:token', auth, async (req, res) => {
   try {

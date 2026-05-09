@@ -42,6 +42,8 @@ export const deleteGroup = (groupId) => api.delete(`/groups/${groupId}`);
 // Invite
 export const generateInvite = (groupId) => api.post(`/groups/${groupId}/invite`);
 export const joinGroup       = (token)   => api.post(`/groups/join/${token}`);
+export const getGroupVideoRoom    = (groupId) => api.get(`/groups/${groupId}/video-room`);
+export const createGroupVideoRoom = (groupId) => api.post(`/groups/${groupId}/video-room`);
 
 export const updateExpense = (expenseId, data) => api.put(`/expenses/${expenseId}`, data);
 export const deleteExpense = (expenseId)       => api.delete(`/expenses/${expenseId}`);

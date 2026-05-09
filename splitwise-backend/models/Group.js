@@ -11,8 +11,12 @@ const groupSchema = new mongoose.Schema({
     default: 'other' 
   },
 
-  // ✅ ADD THIS
   inviteToken: {
+    type: String,
+    default: null
+  },
+
+  videoRoomId: {
     type: String,
     default: null
   }
