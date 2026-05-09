@@ -99,6 +99,7 @@ export default function GroupDetail() {
   const [activeTab, setActiveTab] = useState("expenses");
   const [expenseSubTab, setExpenseSubTab] = useState("expenses"); // ✅ new
   const [expenseFilter, setExpenseFilter] = useState("all"); // ✅ new
+  const [unpaidFilter, setUnpaidFilter] = useState("all");
   const [settlementFilter, setSettlementFilter] = useState("all"); // ✅ new
   const [settlementToFilter, setSettlementToFilter] = useState("all"); // ✅ new
   const [loading, setLoading] = useState(true);
@@ -728,6 +729,7 @@ export default function GroupDetail() {
                 onClick={() => {
                   setExpenseSubTab("expenses");
                   setExpenseFilter("all");
+                  setUnpaidFilter("all");
                 }}
                 className={`flex-1 py-2 px-4 rounded-xl text-sm font-medium transition ${
                   expenseSubTab === "expenses"
@@ -753,55 +755,69 @@ export default function GroupDetail() {
             </div>
 
             {/* ── Filter by member ── */}
-            <div className="overflow-x-auto pb-1">
-              <div className="flex gap-2 min-w-max">
-                {expenseSubTab === "expenses" ? (
-                  <>
-                    <button
-                      onClick={() => setExpenseFilter("all")}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                        expenseFilter === "all"
-                          ? "bg-emerald-500 text-white"
-                          : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-                      }`}
-                    >
-                      All
-                    </button>
-
-                    {/* ── Unpaid Mine button ── */}
-                    <button
-                      onClick={() => setExpenseFilter("unpaid_mine")}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap flex items-center gap-1.5 ${
-                        expenseFilter === "unpaid_mine"
-                          ? "bg-red-500 text-white border border-red-500"
-                          : "bg-gray-800 text-red-400 hover:text-red-300 border border-red-500/40"
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-current inline-block" />
-                      Unpaid (Mine)
-                    </button>
-
-                    {groupMembers.map((member) => (
+            <div className="pb-1">
+              {expenseSubTab === "expenses" ? (
+                <div className="space-y-3">
+                  <div className="overflow-x-auto">
+                    <div className="flex gap-2 min-w-max">
                       <button
-                        key={member._id || member}
-                        onClick={() =>
-                          setExpenseFilter(
-                            member._id?.toString() || member?.toString(),
-                          )
-                        }
+                        onClick={() => setExpenseFilter("all")}
                         className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                          expenseFilter ===
-                          (member._id?.toString() || member?.toString())
+                          expenseFilter === "all"
                             ? "bg-emerald-500 text-white"
                             : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
                         }`}
                       >
-                        {member.name || "Member"}
+                        All
                       </button>
-                    ))}
-                  </>
-                ) : (
-                  <div className="space-y-2">
+
+                      {groupMembers.map((member) => (
+                        <button
+                          key={member._id || member}
+                          onClick={() =>
+                            setExpenseFilter(
+                              member._id?.toString() || member?.toString(),
+                            )
+                          }
+                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                            expenseFilter ===
+                            (member._id?.toString() || member?.toString())
+                              ? "bg-emerald-500 text-white"
+                              : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                          }`}
+                        >
+                          {member.name || "Member"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl px-3 py-3">
+                    <label className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-400 inline-block" />
+                      Unpaid by
+                    </label>
+                    <select
+                      value={unpaidFilter}
+                      onChange={(e) => setUnpaidFilter(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-red-400 transition"
+                    >
+                      <option value="all">All members</option>
+                      {groupMembers.map((member) => {
+                        const memberId = member._id?.toString() || member?.toString();
+                        return (
+                          <option key={memberId} value={memberId}>
+                            {member.name || "Member"}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <div className="flex gap-2 min-w-max">
+                    <div className="space-y-2">
                     {/* FROM filter */}
                     <div>
                       <p className="text-xs text-gray-500 mb-1.5 font-medium">
@@ -875,9 +891,10 @@ export default function GroupDetail() {
                         ))}
                       </div>
                     </div>
+                    </div>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
             {/* Debt banner */}
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
@@ -907,34 +924,38 @@ export default function GroupDetail() {
 
             {/* Filter based on sub tab */}
             {(() => {
+              const getMemberId = (value) =>
+                value?._id?.toString() || value?.id?.toString() || value?.toString();
+
+              const isExpensePaidByMember = (expense, memberId) => {
+                if (!memberId || memberId === "all") return true;
+                if (expense.paidByMultiple?.length > 0) {
+                  return expense.paidByMultiple.some(
+                    (payer) => getMemberId(payer.user) === memberId && Number(payer.amount || 0) > 0,
+                  );
+                }
+                return getMemberId(expense.paidBy) === memberId;
+              };
+
+              const getSplitForMember = (expense, memberId) =>
+                expense.splits?.find((split) => getMemberId(split.user) === memberId);
+
+              const isMemberUnpaidForExpense = (expense, memberId) => {
+                if (!memberId || memberId === "all") return true;
+                const split = getSplitForMember(expense, memberId);
+                if (!split) return false;
+                if (isExpensePaidByMember(expense, memberId)) return false;
+                return !split.settled;
+              };
+
               const filteredItems =
                 expenseSubTab === "expenses"
                   ? activityItems
                       .filter((i) => i.type === "expense")
                       .filter((i) => {
-                        if (expenseFilter === "all") return true;
-                        if (expenseFilter === "unpaid_mine") {
-                          // Show expenses where current user's split is NOT settled
-                          // and current user is NOT the payer of that expense
-                          const mySplit = i.data.splits?.find((s) => {
-                            const splitUserId = s.user?._id?.toString() || s.user?.toString();
-                            return splitUserId === user?.id;
-                          });
-                          if (!mySplit) return false;
-                          // Check if user is the payer — if payer, they are always green
-                          const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
-                          if (paidById === user?.id) return false; // I paid — not "unpaid by me"
-                          // If multi-payer, check if I am one of the payers
-                          if (i.data.paidByMultiple?.length > 1) {
-                            const iAmPayer = i.data.paidByMultiple.some(
-                              (p) => (p.user?._id?.toString() || p.user?.toString()) === user?.id && p.amount > 0
-                            );
-                            if (iAmPayer) return false;
-                          }
-                          return !mySplit.settled;
-                        }
-                        const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
-                        return paidById === expenseFilter;
+                        const paidByMatches = isExpensePaidByMember(i.data, expenseFilter);
+                        const unpaidMatches = isMemberUnpaidForExpense(i.data, unpaidFilter);
+                        return paidByMatches && unpaidMatches;
                       })
                   : activityItems
                       .filter((i) => i.type === "settlement")
@@ -959,18 +980,18 @@ export default function GroupDetail() {
 
               const total = filteredItems.reduce((sum, i) => sum + Number(i.data.amount || 0), 0);
 
-              // My unpaid share total for "Unpaid (Mine)" filter
-              const myUnpaidTotal = expenseFilter === "unpaid_mine"
+              const unpaidSelectionTotal = unpaidFilter !== "all"
                 ? filteredItems.reduce((sum, item) => {
-                    const mySplit = item.data.splits?.find(
-                      (s) => (s.user?._id?.toString() || s.user?.toString()) === user?.id
-                    );
-                    return sum + Number(mySplit?.amount || 0);
+                    const split = getSplitForMember(item.data, unpaidFilter);
+                    return sum + Number(split?.amount || 0);
                   }, 0)
                 : 0;
 
-              const filterMember = expenseFilter !== "all" && expenseFilter !== "unpaid_mine"
+              const filterMember = expenseFilter !== "all"
                 ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === expenseFilter)
+                : null;
+              const unpaidMember = unpaidFilter !== "all"
+                ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === unpaidFilter)
                 : null;
               const fromMember = settlementFilter !== "all"
                 ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === settlementFilter)
@@ -981,17 +1002,16 @@ export default function GroupDetail() {
 
               return (
                 <>
-                  {/* ── Unpaid Mine summary banner ── */}
-                  {expenseFilter === "unpaid_mine" && (
+                  {unpaidMember && (
                     <div className="bg-red-500/10 border border-red-500/30 rounded-2xl px-4 py-3 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-sm text-red-300 font-medium">
-                          {filteredItems.length} unpaid expense{filteredItems.length !== 1 ? "s" : ""} by you
+                          {filteredItems.length} unpaid expense{filteredItems.length !== 1 ? "s" : ""} by {unpaidMember.name || "Member"}
                         </span>
                       </div>
                       <span className="text-red-400 font-bold text-base">
-                        ₹{myUnpaidTotal.toFixed(2)} owed
+                        ₹{unpaidSelectionTotal.toFixed(2)} unpaid
                       </span>
                     </div>
                   )}
