@@ -71,6 +71,15 @@ export default function SettleUp() {
     setStep("amount");
   };
 
+  const buildUpiLink = (upiId, name, amountValue) => {
+    if (!upiId || !amountValue) return null;
+    const pa = encodeURIComponent(upiId);
+    const pn = encodeURIComponent(name || "Payee");
+    const tn = encodeURIComponent(`Splitwise payment to ${name}`);
+    const am = encodeURIComponent(amountValue.toFixed(2));
+    return `upi://pay?pa=${pa}&pn=${pn}&am=${am}&cu=INR&tn=${tn}`;
+  };
+
   const handleSettle = async () => {
     const paymentAmount = parseFloat(amount);
     if (!paidBy || !paidTo) {
@@ -103,6 +112,30 @@ export default function SettleUp() {
     }
   };
 
+  const handlePayWithUpi = () => {
+    const paymentAmount = parseFloat(amount);
+    if (!paidBy || !paidTo) {
+      toast.error("Choose who is paying whom");
+      return;
+    }
+    if (!paymentAmount || paymentAmount <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+    if (!paidTo.upiVerified || !paidTo.upiId) {
+      toast.error("UPI is not available for this recipient");
+      return;
+    }
+
+    const upiLink = buildUpiLink(paidTo.upiId, paidTo.name, paymentAmount);
+    if (!upiLink) {
+      toast.error("Unable to build UPI link");
+      return;
+    }
+
+    toast.success("Opening UPI app. Payment is not recorded until you confirm it.");
+    window.location.assign(upiLink);
+  };
 
   const getInitial = (name) => name?.[0]?.toUpperCase() || "?";
   const avatarColors = [
@@ -385,6 +418,33 @@ export default function SettleUp() {
               className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg flex items-center justify-center gap-2"
             >
               💵 {loading ? "Recording..." : "Mark as Cash Payment"}
+            </button>
+
+            {/* UPI payment */}
+            {paidTo?.upiVerified && paidTo?.upiId ? (
+              <button
+                onClick={handlePayWithUpi}
+                disabled={loading}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white font-semibold py-4 rounded-2xl transition text-lg flex items-center justify-center gap-2"
+              >
+                📲 Open UPI app
+              </button>
+            ) : (
+              <div className="px-4 py-3 rounded-2xl border border-dashed border-gray-700 text-sm text-gray-400 bg-gray-900">
+                UPI not available for this recipient.
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                resetForm();
+                setStep("overview");
+              }}
+              disabled={loading}
+              className="w-full bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-200 font-semibold py-4 rounded-2xl transition text-lg"
+            >
+              ❌ Cancel
             </button>
           </div>
         </div>

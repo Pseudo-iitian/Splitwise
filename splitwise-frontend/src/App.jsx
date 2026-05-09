@@ -24,7 +24,7 @@ export default function App() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        fetch('https://splitwise-tres.vercel.app/api/ping')
+        fetch(`${import.meta.env.VITE_BACKEND_URL}/ping`)
           .catch(() => {}); // silent fail (important)
       }
     }, 30000); // every 30 sec

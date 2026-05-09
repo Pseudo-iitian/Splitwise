@@ -6,6 +6,7 @@ const Expense    = require('../models/Expense');
 const auth       = require('../middleware/auth');
 const { logActivity } = require('../utils/activityLogger');
 const { getCache, setCache, invalidateGroup, keys, TTL } = require('../utils/cache');
+const { generateUPILink } = require('../utils/splitHelpers');
 
 // Helper: mark a user's split as settled/unsettled across a list of expense IDs
 async function markSplitsSettled(expenseIds, userId, settled) {
@@ -133,10 +134,20 @@ router.post('/', auth, async (req, res) => {
 
         const populatedSettlement = await Settlement.findById(duplicates[0].settlement._id).populate([
           { path: 'paidBy',            select: 'name email' },
-          { path: 'paidTo',            select: 'name email' },
+          { path: 'paidTo',            select: 'name email upiId upiVerified' },
           { path: 'relatedExpenses',   select: 'description amount' },
           { path: 'relatedExpense',    select: 'description amount' },
         ]);
+
+        // Add UPI payment link if payee has verified UPI ID
+        if (populatedSettlement.paidTo.upiVerified && populatedSettlement.paidTo.upiId) {
+          populatedSettlement._doc.upiLink = generateUPILink(
+            populatedSettlement.paidTo.upiId,
+            populatedSettlement.paidTo.name,
+            populatedSettlement.amount,
+            `Settlement: ${populatedSettlement.note || 'Splitwise Payment'}`
+          );
+        }
 
         const payload = populatedSettlement.toObject();
         payload.alreadyRecorded = true;
@@ -219,9 +230,19 @@ router.post('/', auth, async (req, res) => {
 
     const populatedSettlement = await Settlement.findById(settlement._id).populate([
       { path: 'paidBy',            select: 'name email' },
-      { path: 'paidTo',            select: 'name email' },
+      { path: 'paidTo',            select: 'name email upiId upiVerified' },
       { path: 'relatedExpenses',   select: 'description amount' },
     ]);
+
+    // Add UPI payment link if payee has verified UPI ID
+    if (populatedSettlement.paidTo.upiVerified && populatedSettlement.paidTo.upiId) {
+      populatedSettlement._doc.upiLink = generateUPILink(
+        populatedSettlement.paidTo.upiId,
+        populatedSettlement.paidTo.name,
+        populatedSettlement.amount,
+        `Settlement: ${populatedSettlement.note || 'Splitwise Payment'}`
+      );
+    }
 
     await logActivity({
       groupId, userId: req.user.id,
@@ -252,10 +273,22 @@ router.get('/group/:groupId', auth, async (req, res) => {
 
     const settlements = await Settlement.find({ group: req.params.groupId })
       .populate('paidBy',          'name email')
-      .populate('paidTo',          'name email')
+      .populate('paidTo',          'name email upiId upiVerified')
       .populate('relatedExpense',  'description amount splits paidBy')  // ✅ splits add
       .populate('relatedExpenses', 'description amount splits paidBy')  // ✅ splits add
       .sort({ date: -1 });
+
+    // Add UPI links to settlements
+    settlements.forEach(settlement => {
+      if (settlement.paidTo.upiVerified && settlement.paidTo.upiId) {
+        settlement._doc.upiLink = generateUPILink(
+          settlement.paidTo.upiId,
+          settlement.paidTo.name,
+          settlement.amount,
+          `Settlement: ${settlement.note || 'Splitwise Payment'}`
+        );
+      }
+    });
 
     await setCache(cacheKey, settlements, TTL.SUMMARY);
 

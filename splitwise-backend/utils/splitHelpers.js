@@ -18,6 +18,21 @@ function splitByExact(splits) {
   return splits.map(s => ({ user: s.user, amount: s.amount }));
 }
 
+// ── UPI Deep Link Generator ──────────────────────────────────────────────────
+function generateUPILink(upiId, payeeName, amount, note = 'Splitwise Payment') {
+  if (!upiId || !upiId.trim()) return null;
+
+  const params = new URLSearchParams({
+    pa: upiId.trim(),      // Payee UPI ID
+    pn: payeeName || 'Payee', // Payee Name
+    am: amount.toString(), // Amount
+    cu: 'INR',             // Currency
+    tn: note               // Transaction Note
+  });
+
+  return `upi://pay?${params.toString()}`;
+}
+
 async function calculateBalances(groupId) {
   const expenses = await Expense.find({ group: groupId })
     .populate('splits.user paidBy')
@@ -49,23 +64,23 @@ async function calculateBalances(groupId) {
 }
 
 async function calculateDetailedBalances(groupId) {
-  const group = await Group.findById(groupId).populate('members', 'name email');
+  const group = await Group.findById(groupId).populate('members', 'name email upiId upiVerified');
   const expenses    = await Expense.find({ group: groupId }).populate('splits.user paidBy paidByMultiple.user');
   const settlements = await Settlement.find({ group: groupId }).populate('paidBy paidTo');
 
-  const balances = {}; // { userId: { amount, name, email } }
+  const balances = {}; // { userId: { amount, name, email, upiId, upiVerified } }
 
-  const ensureUser = (id, name, email) => {
+  const ensureUser = (id, name, email, upiId, upiVerified) => {
     if (!id) return;
-    if (!balances[id]) balances[id] = { amount: 0, name, email };
+    if (!balances[id]) balances[id] = { amount: 0, name, email, upiId, upiVerified };
   };
 
   group?.members?.forEach(member => {
-    ensureUser(member._id.toString(), member.name, member.email);
+    ensureUser(member._id.toString(), member.name, member.email, member.upiId, member.upiVerified);
   });
 
-  const addAmount = (id, name, email, amount) => {
-    ensureUser(id, name, email);
+  const addAmount = (id, name, email, amount, upiId, upiVerified) => {
+    ensureUser(id, name, email, upiId, upiVerified);
     balances[id].amount = +(balances[id].amount + amount).toFixed(2);
   };
 
@@ -74,28 +89,28 @@ async function calculateDetailedBalances(groupId) {
       exp.paidByMultiple.forEach(payer => {
         if (!payer.user) return;
         const pId = payer.user._id ? payer.user._id.toString() : payer.user.toString();
-        addAmount(pId, payer.user.name, payer.user.email, payer.amount);
+        addAmount(pId, payer.user.name, payer.user.email, payer.amount, payer.user.upiId, payer.user.upiVerified);
       });
     } else if (exp.paidBy) {
-      const paidById   = exp.paidBy._id.toString();
-      const paidByName = exp.paidBy.name;
+      const paidById    = exp.paidBy._id.toString();
+      const paidByName  = exp.paidBy.name;
       const paidByEmail = exp.paidBy.email;
-      addAmount(paidById, paidByName, paidByEmail, exp.amount);
+      addAmount(paidById, paidByName, paidByEmail, exp.amount, exp.paidBy.upiId, exp.paidBy.upiVerified);
     }
 
     exp.splits.forEach(split => {
-      const uid   = split.user._id.toString();
-      const uname = split.user.name;
+      const uid    = split.user._id.toString();
+      const uname  = split.user.name;
       const uemail = split.user.email;
-      addAmount(uid, uname, uemail, -split.amount);
+      addAmount(uid, uname, uemail, -split.amount, split.user.upiId, split.user.upiVerified);
     });
   });
 
   settlements.forEach(s => {
     const payerId   = s.paidBy._id.toString();
     const payeeId   = s.paidTo._id.toString();
-    addAmount(payerId, s.paidBy.name, s.paidBy.email, s.amount);
-    addAmount(payeeId, s.paidTo.name, s.paidTo.email, -s.amount);
+    addAmount(payerId, s.paidBy.name, s.paidBy.email, s.amount, s.paidBy.upiId, s.paidBy.upiVerified);
+    addAmount(payeeId, s.paidTo.name, s.paidTo.email, -s.amount, s.paidTo.upiId, s.paidTo.upiVerified);
   });
 
   return balances;
@@ -124,7 +139,7 @@ function simplifyBalances(balances) {
     const amount = +Math.min(debtor.remaining, creditor.remaining).toFixed(2);
 
     if (amount > 0.009) {
-      suggestions.push({
+      const suggestion = {
         paidBy: {
           id: debtor.id,
           name: debtor.name,
@@ -133,10 +148,24 @@ function simplifyBalances(balances) {
         paidTo: {
           id: creditor.id,
           name: creditor.name,
-          email: creditor.email
+          email: creditor.email,
+          upiId: creditor.upiId,
+          upiVerified: creditor.upiVerified
         },
         amount
-      });
+      };
+
+      // Add UPI link if creditor has verified UPI ID
+      if (suggestion.paidTo.upiVerified && suggestion.paidTo.upiId) {
+        suggestion.upiLink = generateUPILink(
+          suggestion.paidTo.upiId,
+          suggestion.paidTo.name,
+          amount,
+          `Splitwise Payment to ${suggestion.paidTo.name}`
+        );
+      }
+
+      suggestions.push(suggestion);
     }
 
     debtor.remaining = +(debtor.remaining - amount).toFixed(2);
@@ -151,16 +180,16 @@ function simplifyBalances(balances) {
 
 async function calculateUserDebts(groupId, userId) {
   const expenses = await Expense.find({ group: groupId })
-    .populate('paidBy', 'name email')
-    .populate('paidByMultiple.user', 'name email')
-    .populate('splits.user', 'name email');
+    .populate('paidBy', 'name email upiId upiVerified')
+    .populate('paidByMultiple.user', 'name email upiId upiVerified')
+    .populate('splits.user', 'name email upiId upiVerified');
     
   const settlements = await Settlement.find({ group: groupId })
-  .populate('paidBy', 'name email')
-  .populate('paidTo', 'name email')
-  .populate('relatedExpense',  'description amount splits paidBy')  // ✅
-  .populate('relatedExpenses', 'description amount splits paidBy')  // ✅
-  .sort({ date: -1 });
+    .populate('paidBy', 'name email')
+    .populate('paidTo', 'name email')
+    .populate('relatedExpense', 'description amount splits paidBy')
+    .populate('relatedExpenses', 'description amount splits paidBy')
+    .sort({ date: -1 });
 
   const debts = {};
   const linkedPayments = {};        // current user ne jo pay kiya (expenses jisme wo debtor tha)
@@ -174,6 +203,8 @@ async function calculateUserDebts(groupId, userId) {
         id,
         name: person.name,
         email: person.email,
+        upiId: person.upiId,
+        upiVerified: person.upiVerified,
         amount: 0,
         expenses: [],        // current user owes them ke liye
         creditsFromThem: [], // ✅ they owe current user ke liye (new)
@@ -454,6 +485,7 @@ module.exports = {
   splitEqually,
   splitByPercentage,
   splitByExact,
+  generateUPILink,
   calculateBalances,
   calculateDetailedBalances,
   calculateUserDebts,

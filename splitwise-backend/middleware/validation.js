@@ -20,13 +20,25 @@ const expenseSchema = Joi.object({
     user: Joi.string().required(),
     amount: Joi.number().required()
   })),
-  members: Joi.array().items(Joi.string()), // Used for 'equal' split
+  members: Joi.array().items(Joi.string()).when('splitType', {
+    is: 'equal',
+    then: Joi.array().min(1).required(),
+    otherwise: Joi.array().optional()
+  }), // Used for 'equal' split
   splitType: Joi.string().valid('equal', 'percentage', 'exact').required(),
-  splits: Joi.array().items(Joi.object({
-    user: Joi.string().required(),
-    amount: Joi.number(),
-    percentage: Joi.number()
-  })).min(1).required(),
+  splits: Joi.when('splitType', {
+    is: 'equal',
+    then: Joi.array().items(Joi.object({
+      user: Joi.string().required(),
+      amount: Joi.number(),
+      percentage: Joi.number()
+    })).default([]),
+    otherwise: Joi.array().items(Joi.object({
+      user: Joi.string().required(),
+      amount: Joi.number(),
+      percentage: Joi.number()
+    })).min(1).required()
+  }),
   date: Joi.date(),
   category: Joi.string()
 });
