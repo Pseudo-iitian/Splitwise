@@ -593,16 +593,18 @@ export default function GroupDetail() {
   ].sort((a, b) => b.date - a.date);
 
   const userDebts = settlementSummary.userDebts || [];
+  const receivables = settlementSummary.receivables || [];
   const totalUserDebt = userDebts.reduce(
     (t, d) => t + Number(d.amount || 0),
     0,
   );
+  const currentUserId = user?.id || user?._id;
 
   const getSettlementText = (s) => {
     const paidById = s.paidBy?._id || s.paidBy?.id;
     const paidToId = s.paidTo?._id || s.paidTo?.id;
-    const payerName = paidById === user?.id ? "You" : s.paidBy?.name;
-    const payeeName = paidToId === user?.id ? "you" : s.paidTo?.name;
+    const payerName = paidById === currentUserId ? "You" : s.paidBy?.name;
+    const payeeName = paidToId === currentUserId ? "you" : s.paidTo?.name;
     return `${payerName || "Someone"} paid ${payeeName || "someone"}`;
   };
 
@@ -637,7 +639,7 @@ export default function GroupDetail() {
     return acc;
   }, {});
 
-  const TABS = ["expenses", "balances", "history", "chat", "spending"];
+  const TABS = ["expenses", "balances", "history", "chat", "spending", "pay-me"];
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -704,7 +706,8 @@ export default function GroupDetail() {
           >
             {tab === "chat" && <FiMessageCircle size={14} />}
             {tab === "spending" && <FiActivity size={14} />}
-            {tab}
+            {tab === "pay-me" && <FiCreditCard size={14} />}
+            {tab === "pay-me" ? "Pay me" : tab}
           </button>
         ))}
       </div>
@@ -1003,7 +1006,7 @@ export default function GroupDetail() {
                           item={item}
                           getSettlementText={getSettlementText}
                           openSettlementModal={openSettlementModal}
-                          currentUserId={user?.id}
+                          currentUserId={currentUserId}
                           userDebts={userDebts}
                         />
                       );
@@ -1439,6 +1442,9 @@ export default function GroupDetail() {
         ) : activeTab === "spending" ? (
           /* ── SPENDING TAB ──────────────────────────────────────── */
           <SpendingTab expenses={expenses} groupMembers={groupMembers} />
+        ) : activeTab === "pay-me" ? (
+          /* ── PAY ME TAB ─────────────────────────────────────────── */
+          <PayMeTab receivables={receivables} />
         ) : null}
       </div>
 
@@ -2351,6 +2357,85 @@ export default function GroupDetail() {
       </div>
     );
   }
+
+  function PayMeTab({ receivables }) {
+    const rows = Array.isArray(receivables) ? receivables : [];
+    const totalReceivable = rows.reduce(
+      (sum, item) => sum + Number(item.amount || 0),
+      0,
+    );
+    const hasPendingAmount = rows.some((item) => Number(item.amount || 0) > 0.009);
+
+    if (rows.length === 0 || !hasPendingAmount) {
+      return (
+        <div className="py-6">
+          <div className="text-center py-20">
+            <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+              <FiCheckCircle className="text-emerald-400" size={26} />
+            </div>
+            <p className="text-gray-400">No one owes you money in this group.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="py-6 space-y-4">
+        <div className="bg-gray-900 border border-emerald-500/20 rounded-2xl p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">
+                How much people should pay me
+              </p>
+              <p className="text-sm text-gray-400 mt-1">
+                Pending amount other members have to return.
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-xs text-gray-500">Total</p>
+              <p className="text-xl font-bold text-emerald-400">
+                ₹{totalReceivable.toFixed(2)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {rows.map((item) => {
+            const amount = Number(item.amount || 0);
+            return (
+              <div
+                key={item.memberId}
+                className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                    amount > 0.009 ? "bg-emerald-500/15" : "bg-gray-800"
+                  }`}>
+                    <FiUsers className={amount > 0.009 ? "text-emerald-400" : "text-gray-500"} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">
+                      {item.name || "Member"} will pay me
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {item.email || "Group member"}
+                    </p>
+                  </div>
+                </div>
+                <span className={`font-bold text-lg shrink-0 ${
+                  amount > 0.009 ? "text-emerald-400" : "text-gray-500"
+                }`}>
+                  ₹{amount.toFixed(2)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   function SpendingTab({ expenses, groupMembers }) {
     const monthlyData = React.useMemo(() => {
       const months = {};

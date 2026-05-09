@@ -344,6 +344,93 @@ async function calculateUserDebts(groupId, userId) {
     .sort((a, b) => b.amount - a.amount);
 }
 
+async function calculateUserReceivables(groupId, userId) {
+  const currentUserId = userId.toString();
+  const group = await Group.findById(groupId).populate('members', 'name email');
+  const expenses = await Expense.find({ group: groupId })
+    .populate('paidBy', 'name email')
+    .populate('paidByMultiple.user', 'name email')
+    .populate('splits.user', 'name email');
+  const settlements = await Settlement.find({ group: groupId, paidTo: currentUserId });
+
+  const receivables = {};
+
+  group?.members?.forEach(member => {
+    const memberId = member._id.toString();
+    if (memberId !== currentUserId) {
+      receivables[memberId] = {
+        memberId: member._id.toString(),
+        name: member.name,
+        email: member.email,
+        amount: 0,
+      };
+    }
+  });
+
+  const ensureReceivable = person => {
+    const memberId = person?._id?.toString() || person?.toString();
+    if (!memberId || memberId === currentUserId) return null;
+    if (!receivables[memberId]) {
+      receivables[memberId] = {
+        memberId,
+        name: person.name || 'Member',
+        email: person.email,
+        amount: 0,
+      };
+    }
+    return receivables[memberId];
+  };
+
+  expenses.forEach(expense => {
+    let currentUserPaidAmount = 0;
+
+    if (expense.paidByMultiple?.length > 0) {
+      const payer = expense.paidByMultiple.find(p => {
+        const payerId = p.user?._id?.toString() || p.user?.toString();
+        return payerId === currentUserId;
+      });
+      if (payer) currentUserPaidAmount = Number(payer.amount || 0);
+    } else if (expense.paidBy?._id?.toString() === currentUserId) {
+      currentUserPaidAmount = Number(expense.amount || 0);
+    }
+
+    if (currentUserPaidAmount <= 0 || Number(expense.amount || 0) <= 0) return;
+
+    const ratio = currentUserPaidAmount / Number(expense.amount);
+    expense.splits?.forEach(split => {
+      const splitUserId = split.user?._id?.toString() || split.user?.toString();
+      if (!splitUserId || splitUserId === currentUserId || split.settled) return;
+
+      const debt = ensureReceivable(split.user);
+      if (!debt) return;
+
+      debt.amount = +(debt.amount + Number(split.amount || 0) * ratio).toFixed(2);
+    });
+  });
+
+  settlements.forEach(settlement => {
+    const hasLinkedExpense =
+      settlement.relatedExpense || settlement.relatedExpenses?.length > 0;
+    if (hasLinkedExpense) return;
+
+    const payerId = settlement.paidBy?.toString();
+    const debt = receivables[payerId];
+    if (!debt) return;
+
+    debt.amount = Math.max(
+      0,
+      +(Number(debt.amount || 0) - Number(settlement.amount || 0)).toFixed(2),
+    );
+  });
+
+  return Object.values(receivables)
+    .map(item => ({
+      ...item,
+      amount: +Number(item.amount || 0).toFixed(2),
+    }))
+    .sort((a, b) => b.amount - a.amount || String(a.name || '').localeCompare(String(b.name || '')));
+}
+
 async function calculateSettlementSummary(groupId, userId) {
   const balances = await calculateDetailedBalances(groupId);
   const settlements = await Settlement.find({ group: groupId })
@@ -358,6 +445,7 @@ async function calculateSettlementSummary(groupId, userId) {
     members: Object.entries(balances).map(([id, data]) => ({ id, ...data })),
     suggestions: simplifyBalances(balances),
     userDebts: userId ? await calculateUserDebts(groupId, userId) : [],
+    receivables: userId ? await calculateUserReceivables(groupId, userId) : [],
     settlements
   };
 }
@@ -369,5 +457,6 @@ module.exports = {
   calculateBalances,
   calculateDetailedBalances,
   calculateUserDebts,
+  calculateUserReceivables,
   calculateSettlementSummary
 };
