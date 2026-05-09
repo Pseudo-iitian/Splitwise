@@ -26,6 +26,7 @@ export default function SettleUp() {
   const [paidBy, setPaidBy] = useState(null);
   const [paidTo, setPaidTo] = useState(null);
   const [amount, setAmount] = useState("");
+  const [remarks, setRemarks] = useState("");
   const [selectedExpenseIds, setSelectedExpenseIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -54,6 +55,7 @@ export default function SettleUp() {
     setPaidBy(null);
     setPaidTo(null);
     setAmount("");
+    setRemarks("");
     setSelectedExpenseIds([]);
     setStep("overview");
   };
@@ -67,7 +69,7 @@ export default function SettleUp() {
     setPaidTo(debt);
     setAmount(debt.amount.toFixed(2));
     // Pre-select all related expenses by default
-    setSelectedExpenseIds(debt.expenses?.map(e => e.id) || []);
+    setSelectedExpenseIds(debt.expenses?.map((e) => e.id) || []);
     setStep("amount");
   };
 
@@ -100,7 +102,7 @@ export default function SettleUp() {
         amount: paymentAmount,
         relatedExpenses:
           selectedExpenseIds.length > 0 ? selectedExpenseIds : undefined,
-        note: `${paidBy.name} paid ${paidTo.name}`,
+        note: remarks.trim() || `${paidBy.name} paid ${paidTo.name}`,
       });
       toast.success("Payment recorded!");
       await fetchSummary();
@@ -122,7 +124,7 @@ export default function SettleUp() {
       toast.error("Enter a valid amount");
       return;
     }
-    if (!paidTo.upiId || paidTo.upiVerificationStatus === 'none') {
+    if (!paidTo.upiId || paidTo.upiVerificationStatus === "none") {
       toast.error("UPI is not available for this recipient");
       return;
     }
@@ -133,7 +135,9 @@ export default function SettleUp() {
       return;
     }
 
-    toast.success("Opening UPI app. Payment is not recorded until you confirm it.");
+    toast.success(
+      "Opening UPI app. Payment is not recorded until you confirm it.",
+    );
     window.location.assign(upiLink);
   };
 
@@ -169,7 +173,7 @@ export default function SettleUp() {
     );
     setAmount(suggestedAmount > 0 ? suggestedAmount.toFixed(2) : "");
     // Pre-select all related expenses by default
-    setSelectedExpenseIds(member.expenses?.map(e => e.id) || []);
+    setSelectedExpenseIds(member.expenses?.map((e) => e.id) || []);
     setStep("amount");
   };
 
@@ -355,7 +359,7 @@ export default function SettleUp() {
               </div>
             </div>
           )}
-          <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="flex items-center justify-center gap-3 mb-6">
             <div className="w-12 h-12 border border-gray-600 rounded-xl flex items-center justify-center text-xl">
               ₹
             </div>
@@ -367,6 +371,18 @@ export default function SettleUp() {
               className="text-3xl sm:text-4xl font-bold bg-transparent text-white border-b-2 border-emerald-500 outline-none w-36 sm:w-44 text-center"
               placeholder="0.00"
               autoFocus
+            />
+          </div>
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              📝 Remarks (optional)
+            </label>
+            <input
+              type="text"
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="e.g., For electricity bill, dinner at Olive Garden, etc."
+              className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition"
             />
           </div>
           <button
@@ -391,9 +407,11 @@ export default function SettleUp() {
             {paidBy?.name} paid{" "}
             <span className="font-bold">{paidTo?.name}</span>
           </p>
-          <p className="text-center text-gray-400 text-sm mb-6 break-all">
-            {paidTo?.email}
-          </p>
+          {remarks && (
+            <p className="text-center text-purple-300 text-sm mb-3 break-words">
+              📝 {remarks}
+            </p>
+          )}
           {selectedExpenseIds.length > 0 && (
             <p className="text-center text-emerald-300 text-sm mb-6 break-words">
               For{" "}
@@ -421,7 +439,9 @@ export default function SettleUp() {
             </button>
 
             {/* UPI payment */}
-            {(paidTo?.upiVerified || paidTo?.upiVerificationStatus === 'formatOnly') && paidTo?.upiId ? (
+            {(paidTo?.upiVerified ||
+              paidTo?.upiVerificationStatus === "formatOnly") &&
+            paidTo?.upiId ? (
               <div className="space-y-3">
                 <button
                   onClick={handlePayWithUpi}
@@ -430,9 +450,10 @@ export default function SettleUp() {
                 >
                   📲 Open UPI app
                 </button>
-                {paidTo?.upiVerificationStatus === 'formatOnly' && (
+                {paidTo?.upiVerificationStatus === "formatOnly" && (
                   <p className="text-center text-yellow-300 text-sm px-2">
-                    ⚠️ UPI handle format is valid, but this app has not performed provider-level verification.
+                    ⚠️ UPI handle format is valid, but this app has not
+                    performed provider-level verification.
                   </p>
                 )}
               </div>
@@ -456,7 +477,6 @@ export default function SettleUp() {
           </div>
         </div>
       )}
-      
     </div>
   );
 }

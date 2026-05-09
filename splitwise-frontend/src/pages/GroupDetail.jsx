@@ -112,6 +112,7 @@ export default function GroupDetail() {
   const [deleteModal, setDeleteModal] = useState(null);
   const [settlementModal, setSettlementModal] = useState(null);
   const [settlementAmount, setSettlementAmount] = useState("");
+  const [settlementNote, setSettlementNote] = useState("");
   const [settlementExpenseIds, setSettlementExpenseIds] = useState([]);
   const [savingSettlement, setSavingSettlement] = useState(false);
 
@@ -158,14 +159,17 @@ export default function GroupDetail() {
   const [pollCreating, setPollCreating] = useState(false);
 
   // ── AI Expense Assistant ──────────────────────────────────────────────────
-  const [showAIChat, setShowAIChat]       = useState(false);
-  const [aiMessages, setAiMessages]       = useState([
-    { role: 'bot', text: '👋 Hi! Main aapka AI Expense Assistant hoon.\n\nBas natural language mein batao — Hindi, English, ya Hinglish sab chalega!\n\n**Example:**\n• "Sahil ne dinner pay kiya 1200 ka"\n• "Maine petrol bhara 500 ka"\n• "Pizza 1500 Vikas ne pay kiya 60% mera 40% Sahil ka"' }
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [aiMessages, setAiMessages] = useState([
+    {
+      role: "bot",
+      text: '👋 Hi! Main aapka AI Expense Assistant hoon.\n\nBas natural language mein batao — Hindi, English, ya Hinglish sab chalega!\n\n**Example:**\n• "Sahil ne dinner pay kiya 1200 ka"\n• "Maine petrol bhara 500 ka"\n• "Pizza 1500 Vikas ne pay kiya 60% mera 40% Sahil ka"',
+    },
   ]);
-  const [aiInput, setAiInput]             = useState('');
-  const [aiLoading, setAiLoading]         = useState(false);
-  const [aiPreview, setAiPreview]         = useState(null); // parsed expense to confirm
-  const aiChatEndRef                      = useRef(null);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiPreview, setAiPreview] = useState(null); // parsed expense to confirm
+  const aiChatEndRef = useRef(null);
 
   const fetchVideoRoom = async () => {
     setVideoError("");
@@ -177,7 +181,7 @@ export default function GroupDetail() {
       if (err.response?.status === 404) {
         setVideoRoom(null);
       } else {
-        setVideoError(err.response?.data?.error || 'Unable to load video room');
+        setVideoError(err.response?.data?.error || "Unable to load video room");
       }
     } finally {
       setVideoLoading(false);
@@ -191,9 +195,11 @@ export default function GroupDetail() {
       const res = await createGroupVideoRoom(groupId);
       setVideoRoom(res.data);
       setShowVideoIframe(true);
-      toast.success('Video room created. Share the invite link with group members.');
+      toast.success(
+        "Video room created. Share the invite link with group members.",
+      );
     } catch (err) {
-      setVideoError(err.response?.data?.error || 'Unable to create video room');
+      setVideoError(err.response?.data?.error || "Unable to create video room");
     } finally {
       setVideoLoading(false);
     }
@@ -202,7 +208,7 @@ export default function GroupDetail() {
   const copyVideoInvite = async () => {
     if (!videoRoom?.inviteLink) return;
     await navigator.clipboard.writeText(videoRoom.inviteLink);
-    toast.success('Invite link copied to clipboard');
+    toast.success("Invite link copied to clipboard");
   };
 
   useEffect(() => {
@@ -235,7 +241,9 @@ export default function GroupDetail() {
     });
 
     channel.bind("poll-update", (updatedMsg) => {
-      setChatMessages((prev) => prev.map((m) => m._id === updatedMsg._id ? updatedMsg : m));
+      setChatMessages((prev) =>
+        prev.map((m) => (m._id === updatedMsg._id ? updatedMsg : m)),
+      );
     });
 
     return () => {
@@ -314,10 +322,10 @@ export default function GroupDetail() {
     setChatSending(true);
     try {
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append("file", file);
       await sendChatMedia(groupId, fd);
     } catch {
-      toast.error('Failed to send file');
+      toast.error("Failed to send file");
     } finally {
       setChatSending(false);
     }
@@ -330,25 +338,35 @@ export default function GroupDetail() {
       audioChunksRef.current = [];
       const mr = new MediaRecorder(stream);
       mediaRecorderRef.current = mr;
-      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
       mr.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const file = new File([blob], `audio-${Date.now()}.webm`, { type: 'audio/webm' });
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const file = new File([blob], `audio-${Date.now()}.webm`, {
+          type: "audio/webm",
+        });
         setChatSending(true);
         try {
           const fd = new FormData();
-          fd.append('file', file);
+          fd.append("file", file);
           await sendChatMedia(groupId, fd);
-        } catch { toast.error('Failed to send audio'); }
-        finally { setChatSending(false); }
+        } catch {
+          toast.error("Failed to send audio");
+        } finally {
+          setChatSending(false);
+        }
       };
       mr.start();
       setRecordingAudio(true);
       setRecordingTime(0);
-      recordingTimerRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000);
+      recordingTimerRef.current = setInterval(
+        () => setRecordingTime((t) => t + 1),
+        1000,
+      );
     } catch {
-      toast.error('Microphone access denied');
+      toast.error("Microphone access denied");
     }
   };
 
@@ -361,60 +379,90 @@ export default function GroupDetail() {
 
   // ── Poll create ───────────────────────────────────────────────────────────
   const handleCreatePoll = async () => {
-    if (!pollQuestion.trim()) return toast.error('Enter a question');
-    const opts = pollOptions.filter(o => o.trim());
-    if (opts.length < 2) return toast.error('Add at least 2 options');
+    if (!pollQuestion.trim()) return toast.error("Enter a question");
+    const opts = pollOptions.filter((o) => o.trim());
+    if (opts.length < 2) return toast.error("Add at least 2 options");
     setPollCreating(true);
     try {
-      await createPoll(groupId, { question: pollQuestion.trim(), options: opts });
+      await createPoll(groupId, {
+        question: pollQuestion.trim(),
+        options: opts,
+      });
       setShowPollModal(false);
-      setPollQuestion('');
-      setPollOptions(['', '']);
-    } catch { toast.error('Failed to create poll'); }
-    finally { setPollCreating(false); }
+      setPollQuestion("");
+      setPollOptions(["", ""]);
+    } catch {
+      toast.error("Failed to create poll");
+    } finally {
+      setPollCreating(false);
+    }
   };
 
   // ── Poll vote ─────────────────────────────────────────────────────────────
   const handleVote = async (msgId, optionIndex) => {
     try {
       const res = await voteOnPoll(groupId, msgId, optionIndex);
-      setChatMessages(prev => prev.map(m => m._id === msgId ? res.data : m));
-    } catch { toast.error('Vote failed'); }
+      setChatMessages((prev) =>
+        prev.map((m) => (m._id === msgId ? res.data : m)),
+      );
+    } catch {
+      toast.error("Vote failed");
+    }
   };
 
   // ── AI Expense Assistant handlers ─────────────────────────────────────────
   const handleAISend = async () => {
     if (!aiInput.trim() || aiLoading) return;
     const userMsg = aiInput.trim();
-    setAiInput('');
-    setAiMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setAiInput("");
+    setAiMessages((prev) => [...prev, { role: "user", text: userMsg }]);
     setAiLoading(true);
     setAiPreview(null);
     try {
       // Build history from current messages (exclude welcome message at index 0)
-      const history = aiMessages.slice(1).map(m => ({ role: m.role, text: m.text }));
-      const res  = await aiAssistExpense(groupId, userMsg, history);
+      const history = aiMessages
+        .slice(1)
+        .map((m) => ({ role: m.role, text: m.text }));
+      const res = await aiAssistExpense(groupId, userMsg, history);
       const data = res.data;
-      if (data.action === 'ADD_EXPENSE') {
-        const payer       = groupMembers?.find(m => (m._id || m) === data.paidBy);
+      if (data.action === "ADD_EXPENSE") {
+        const payer = groupMembers?.find((m) => (m._id || m) === data.paidBy);
         const memberNames = (data.splitBetween || [])
-          .map(id => groupMembers?.find(m => (m._id || m) === id)?.name || id)
-          .join(', ');
+          .map(
+            (id) => groupMembers?.find((m) => (m._id || m) === id)?.name || id,
+          )
+          .join(", ");
         setAiPreview(data);
-        setAiMessages(prev => [...prev, {
-          role: 'bot',
-          text: `✅ **Expense parsed!**\n\n📝 **${data.description}**\n💰 ₹${data.amount}\n👤 Paid by: ${payer?.name || data.paidBy}\n🔀 Split: ${data.splitType}\n👥 Among: ${memberNames || 'All members'}`,
-          isPreview: true,
-        }]);
-      } else if (data.action === 'ASK_USER') {
-        setAiMessages(prev => [...prev, { role: 'bot', text: data.question }]);
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            role: "bot",
+            text: `✅ **Expense parsed!**\n\n📝 **${data.description}**\n💰 ₹${data.amount}\n👤 Paid by: ${payer?.name || data.paidBy}\n🔀 Split: ${data.splitType}\n👥 Among: ${memberNames || "All members"}`,
+            isPreview: true,
+          },
+        ]);
+      } else if (data.action === "ASK_USER") {
+        setAiMessages((prev) => [
+          ...prev,
+          { role: "bot", text: data.question },
+        ]);
       } else {
-        setAiMessages(prev => [...prev, { role: 'bot', text: 'Kuch samajh nahi aaya, dobara try karo!' }]);
+        setAiMessages((prev) => [
+          ...prev,
+          { role: "bot", text: "Kuch samajh nahi aaya, dobara try karo!" },
+        ]);
       }
     } catch (err) {
-      console.error('AI Error:', err);
-      const msg = err?.response?.data?.details || err?.message || 'Unknown error';
-      setAiMessages(prev => [...prev, { role: 'bot', text: `❌ Error: ${msg}\n\nServer check karo ya thodi der baad try karo.` }]);
+      console.error("AI Error:", err);
+      const msg =
+        err?.response?.data?.details || err?.message || "Unknown error";
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          role: "bot",
+          text: `❌ Error: ${msg}\n\nServer check karo ya thodi der baad try karo.`,
+        },
+      ]);
     } finally {
       setAiLoading(false);
     }
@@ -425,31 +473,36 @@ export default function GroupDetail() {
     try {
       await addExpense({
         description: aiPreview.description,
-        amount:      parseFloat(aiPreview.amount),
+        amount: parseFloat(aiPreview.amount),
         groupId,
-        paidBy:      aiPreview.paidBy,
-        splitType:   (aiPreview.splitType || 'equal').toLowerCase(),
-        members:     aiPreview.splitBetween?.length
+        paidBy: aiPreview.paidBy,
+        splitType: (aiPreview.splitType || "equal").toLowerCase(),
+        members: aiPreview.splitBetween?.length
           ? aiPreview.splitBetween
-          : groupMembers?.map(m => m._id || m),
+          : groupMembers?.map((m) => m._id || m),
         splits: aiPreview.splits || [],
       });
-      toast.success('✅ Expense added by AI!');
+      toast.success("✅ Expense added by AI!");
       setAiPreview(null);
-      setAiMessages(prev => [...prev, { role: 'bot', text: '🎉 Expense successfully add ho gaya! 🚀' }]);
+      setAiMessages((prev) => [
+        ...prev,
+        { role: "bot", text: "🎉 Expense successfully add ho gaya! 🚀" },
+      ]);
       fetchAll();
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to add expense');
+      toast.error(err.response?.data?.error || "Failed to add expense");
     }
   };
 
   const handleAIReject = () => {
     setAiPreview(null);
-    setAiMessages(prev => [...prev, { role: 'bot', text: '↩️ Ok! Modify karke dobara batao.' }]);
+    setAiMessages((prev) => [
+      ...prev,
+      { role: "bot", text: "↩️ Ok! Modify karke dobara batao." },
+    ]);
   };
 
   const fetchAll = async () => {
-
     try {
       const [expRes, summaryRes, histRes, groupRes] = await Promise.all([
         getExpenses(groupId),
@@ -558,6 +611,7 @@ export default function GroupDetail() {
   const openSettlementModal = (settlement) => {
     setSettlementModal(settlement);
     setSettlementAmount(settlement.amount?.toString() || "");
+    setSettlementNote(settlement.note || ""); // ← ye add karo
     if (settlement.relatedExpenses?.length > 0) {
       setSettlementExpenseIds(
         settlement.relatedExpenses.map((e) => e._id || e),
@@ -581,7 +635,7 @@ export default function GroupDetail() {
     try {
       await updateSettlement(settlementModal._id, {
         amount,
-        note: settlementModal.note,
+        note: settlementNote,
         relatedExpenses:
           settlementExpenseIds.length > 0 ? settlementExpenseIds : null,
       });
@@ -692,7 +746,15 @@ export default function GroupDetail() {
     return acc;
   }, {});
 
-  const TABS = ["expenses", "balances", "history", "chat", "spending", "pay-me", "video"];
+  const TABS = [
+    "expenses",
+    "balances",
+    "history",
+    "chat",
+    "spending",
+    "pay-me",
+    "video",
+  ];
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -772,7 +834,9 @@ export default function GroupDetail() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-40">
             <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
-            <p className="text-gray-400 animate-pulse">Loading group details...</p>
+            <p className="text-gray-400 animate-pulse">
+              Loading group details...
+            </p>
           </div>
         ) : activeTab === "expenses" ? (
           /* ── EXPENSES TAB ──────────────────────────────────────── */
@@ -859,7 +923,8 @@ export default function GroupDetail() {
                     >
                       <option value="all">All members</option>
                       {groupMembers.map((member) => {
-                        const memberId = member._id?.toString() || member?.toString();
+                        const memberId =
+                          member._id?.toString() || member?.toString();
                         return (
                           <option key={memberId} value={memberId}>
                             {member.name || "Member"}
@@ -873,79 +938,79 @@ export default function GroupDetail() {
                 <div className="overflow-x-auto">
                   <div className="flex gap-2 min-w-max">
                     <div className="space-y-2">
-                    {/* FROM filter */}
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1.5 font-medium">
-                        From (who paid):
-                      </p>
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => setSettlementFilter("all")}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                            settlementFilter === "all"
-                              ? "bg-emerald-500 text-white"
-                              : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-                          }`}
-                        >
-                          All
-                        </button>
-                        {groupMembers.map((member) => (
+                      {/* FROM filter */}
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1.5 font-medium">
+                          From (who paid):
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
                           <button
-                            key={member._id || member}
-                            onClick={() =>
-                              setSettlementFilter(
-                                member._id?.toString() || member?.toString(),
-                              )
-                            }
+                            onClick={() => setSettlementFilter("all")}
                             className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                              settlementFilter ===
-                              (member._id?.toString() || member?.toString())
+                              settlementFilter === "all"
                                 ? "bg-emerald-500 text-white"
                                 : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
                             }`}
                           >
-                            {member.name || "Member"}
+                            All
                           </button>
-                        ))}
+                          {groupMembers.map((member) => (
+                            <button
+                              key={member._id || member}
+                              onClick={() =>
+                                setSettlementFilter(
+                                  member._id?.toString() || member?.toString(),
+                                )
+                              }
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                                settlementFilter ===
+                                (member._id?.toString() || member?.toString())
+                                  ? "bg-emerald-500 text-white"
+                                  : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                              }`}
+                            >
+                              {member.name || "Member"}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* TO filter */}
-                    <div>
-                      <p className="text-xs text-gray-500 mb-1.5 font-medium">
-                        To (who received):
-                      </p>
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => setSettlementToFilter("all")}
-                          className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                            settlementToFilter === "all"
-                              ? "bg-blue-500 text-white"
-                              : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
-                          }`}
-                        >
-                          All
-                        </button>
-                        {groupMembers.map((member) => (
+                      {/* TO filter */}
+                      <div>
+                        <p className="text-xs text-gray-500 mb-1.5 font-medium">
+                          To (who received):
+                        </p>
+                        <div className="flex gap-2 flex-wrap">
                           <button
-                            key={member._id || member}
-                            onClick={() =>
-                              setSettlementToFilter(
-                                member._id?.toString() || member?.toString(),
-                              )
-                            }
+                            onClick={() => setSettlementToFilter("all")}
                             className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
-                              settlementToFilter ===
-                              (member._id?.toString() || member?.toString())
+                              settlementToFilter === "all"
                                 ? "bg-blue-500 text-white"
                                 : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
                             }`}
                           >
-                            {member.name || "Member"}
+                            All
                           </button>
-                        ))}
+                          {groupMembers.map((member) => (
+                            <button
+                              key={member._id || member}
+                              onClick={() =>
+                                setSettlementToFilter(
+                                  member._id?.toString() || member?.toString(),
+                                )
+                              }
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium transition whitespace-nowrap ${
+                                settlementToFilter ===
+                                (member._id?.toString() || member?.toString())
+                                  ? "bg-blue-500 text-white"
+                                  : "bg-gray-800 text-gray-400 hover:text-white border border-gray-700"
+                              }`}
+                            >
+                              {member.name || "Member"}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
                     </div>
                   </div>
                 </div>
@@ -980,20 +1045,26 @@ export default function GroupDetail() {
             {/* Filter based on sub tab */}
             {(() => {
               const getMemberId = (value) =>
-                value?._id?.toString() || value?.id?.toString() || value?.toString();
+                value?._id?.toString() ||
+                value?.id?.toString() ||
+                value?.toString();
 
               const isExpensePaidByMember = (expense, memberId) => {
                 if (!memberId || memberId === "all") return true;
                 if (expense.paidByMultiple?.length > 0) {
                   return expense.paidByMultiple.some(
-                    (payer) => getMemberId(payer.user) === memberId && Number(payer.amount || 0) > 0,
+                    (payer) =>
+                      getMemberId(payer.user) === memberId &&
+                      Number(payer.amount || 0) > 0,
                   );
                 }
                 return getMemberId(expense.paidBy) === memberId;
               };
 
               const getSplitForMember = (expense, memberId) =>
-                expense.splits?.find((split) => getMemberId(split.user) === memberId);
+                expense.splits?.find(
+                  (split) => getMemberId(split.user) === memberId,
+                );
 
               const isMemberUnpaidForExpense = (expense, memberId) => {
                 if (!memberId || memberId === "all") return true;
@@ -1008,17 +1079,31 @@ export default function GroupDetail() {
                   ? activityItems
                       .filter((i) => i.type === "expense")
                       .filter((i) => {
-                        const paidByMatches = isExpensePaidByMember(i.data, expenseFilter);
-                        const unpaidMatches = isMemberUnpaidForExpense(i.data, unpaidFilter);
+                        const paidByMatches = isExpensePaidByMember(
+                          i.data,
+                          expenseFilter,
+                        );
+                        const unpaidMatches = isMemberUnpaidForExpense(
+                          i.data,
+                          unpaidFilter,
+                        );
                         return paidByMatches && unpaidMatches;
                       })
                   : activityItems
                       .filter((i) => i.type === "settlement")
                       .filter((i) => {
-                        const paidById = i.data.paidBy?._id?.toString() || i.data.paidBy?.toString();
-                        const paidToId = i.data.paidTo?._id?.toString() || i.data.paidTo?.toString();
-                        const fromMatch = settlementFilter === "all" || paidById === settlementFilter;
-                        const toMatch = settlementToFilter === "all" || paidToId === settlementToFilter;
+                        const paidById =
+                          i.data.paidBy?._id?.toString() ||
+                          i.data.paidBy?.toString();
+                        const paidToId =
+                          i.data.paidTo?._id?.toString() ||
+                          i.data.paidTo?.toString();
+                        const fromMatch =
+                          settlementFilter === "all" ||
+                          paidById === settlementFilter;
+                        const toMatch =
+                          settlementToFilter === "all" ||
+                          paidToId === settlementToFilter;
                         return fromMatch && toMatch;
                       });
 
@@ -1027,33 +1112,57 @@ export default function GroupDetail() {
                   <div className="text-center py-20">
                     <div className="text-5xl mb-4">💸</div>
                     <p className="text-gray-400">
-                      {expenseSubTab === "expenses" ? "No expenses found" : "No settlements found"}
+                      {expenseSubTab === "expenses"
+                        ? "No expenses found"
+                        : "No settlements found"}
                     </p>
                   </div>
                 );
               }
 
-              const total = filteredItems.reduce((sum, i) => sum + Number(i.data.amount || 0), 0);
+              const total = filteredItems.reduce(
+                (sum, i) => sum + Number(i.data.amount || 0),
+                0,
+              );
 
-              const unpaidSelectionTotal = unpaidFilter !== "all"
-                ? filteredItems.reduce((sum, item) => {
-                    const split = getSplitForMember(item.data, unpaidFilter);
-                    return sum + Number(split?.amount || 0);
-                  }, 0)
-                : 0;
+              const unpaidSelectionTotal =
+                unpaidFilter !== "all"
+                  ? filteredItems.reduce((sum, item) => {
+                      const split = getSplitForMember(item.data, unpaidFilter);
+                      return sum + Number(split?.amount || 0);
+                    }, 0)
+                  : 0;
 
-              const filterMember = expenseFilter !== "all"
-                ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === expenseFilter)
-                : null;
-              const unpaidMember = unpaidFilter !== "all"
-                ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === unpaidFilter)
-                : null;
-              const fromMember = settlementFilter !== "all"
-                ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === settlementFilter)
-                : null;
-              const toMember = settlementToFilter !== "all"
-                ? groupMembers.find(m => (m._id?.toString() || m?.toString()) === settlementToFilter)
-                : null;
+              const filterMember =
+                expenseFilter !== "all"
+                  ? groupMembers.find(
+                      (m) =>
+                        (m._id?.toString() || m?.toString()) === expenseFilter,
+                    )
+                  : null;
+              const unpaidMember =
+                unpaidFilter !== "all"
+                  ? groupMembers.find(
+                      (m) =>
+                        (m._id?.toString() || m?.toString()) === unpaidFilter,
+                    )
+                  : null;
+              const fromMember =
+                settlementFilter !== "all"
+                  ? groupMembers.find(
+                      (m) =>
+                        (m._id?.toString() || m?.toString()) ===
+                        settlementFilter,
+                    )
+                  : null;
+              const toMember =
+                settlementToFilter !== "all"
+                  ? groupMembers.find(
+                      (m) =>
+                        (m._id?.toString() || m?.toString()) ===
+                        settlementToFilter,
+                    )
+                  : null;
 
               return (
                 <>
@@ -1062,7 +1171,9 @@ export default function GroupDetail() {
                       <div className="flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-sm text-red-300 font-medium">
-                          {filteredItems.length} unpaid expense{filteredItems.length !== 1 ? "s" : ""} by {unpaidMember.name || "Member"}
+                          {filteredItems.length} unpaid expense
+                          {filteredItems.length !== 1 ? "s" : ""} by{" "}
+                          {unpaidMember.name || "Member"}
                         </span>
                       </div>
                       <span className="text-red-400 font-bold text-base">
@@ -1088,10 +1199,15 @@ export default function GroupDetail() {
                     }
                     const exp = item.data;
                     return (
-                      <div key={item.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
+                      <div
+                        key={item.id}
+                        className="bg-gray-900 border border-gray-800 rounded-2xl p-4"
+                      >
                         <div className="flex items-start justify-between gap-3 mb-3">
                           <div className="min-w-0">
-                            <h3 className="font-semibold truncate">{exp.description}</h3>
+                            <h3 className="font-semibold truncate">
+                              {exp.description}
+                            </h3>
                             <p className="text-gray-400 text-sm mt-0.5 truncate">
                               Paid by{" "}
                               {exp.paidByMultiple?.length > 1
@@ -1100,9 +1216,18 @@ export default function GroupDetail() {
                             </p>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
-                            <span className="text-emerald-400 font-bold text-lg">₹{exp.amount}</span>
+                            <span className="text-emerald-400 font-bold text-lg">
+                              ₹{exp.amount}
+                            </span>
                             <button
-                              onClick={() => navigate("/group/" + groupId + "/edit-expense/" + exp._id)}
+                              onClick={() =>
+                                navigate(
+                                  "/group/" +
+                                    groupId +
+                                    "/edit-expense/" +
+                                    exp._id,
+                                )
+                              }
                               className="p-1.5 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition"
                             >
                               <FiEdit2 size={14} />
@@ -1120,18 +1245,35 @@ export default function GroupDetail() {
                             const splitUserId = split.user?._id || split.user;
                             const isPayer =
                               exp.paidByMultiple?.length > 0
-                                ? exp.paidByMultiple.some((p) => (p.user?._id || p.user) === splitUserId && p.amount > 0)
-                                : (exp.paidBy?._id || exp.paidBy) === splitUserId;
+                                ? exp.paidByMultiple.some(
+                                    (p) =>
+                                      (p.user?._id || p.user) === splitUserId &&
+                                      p.amount > 0,
+                                  )
+                                : (exp.paidBy?._id || exp.paidBy) ===
+                                  splitUserId;
                             const isGreen = split.settled || isPayer;
                             return (
-                              <span key={split._id} className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${isGreen ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"}`}>
-                                {isGreen ? <FiCheckCircle size={12} /> : <FiXCircle size={12} />}
-                                <span>{split.user?.name}: ₹{Number(split.amount || 0).toFixed(2)}</span>
+                              <span
+                                key={split._id}
+                                className={`text-xs px-2 py-1 rounded-full inline-flex items-center gap-1 ${isGreen ? "bg-emerald-500/10 text-emerald-300" : "bg-red-500/10 text-red-300"}`}
+                              >
+                                {isGreen ? (
+                                  <FiCheckCircle size={12} />
+                                ) : (
+                                  <FiXCircle size={12} />
+                                )}
+                                <span>
+                                  {split.user?.name}: ₹
+                                  {Number(split.amount || 0).toFixed(2)}
+                                </span>
                               </span>
                             );
                           })}
                         </div>
-                        <p className="text-xs text-gray-600 mt-2">{item.date.toLocaleDateString("en-IN")}</p>
+                        <p className="text-xs text-gray-600 mt-2">
+                          {item.date.toLocaleDateString("en-IN")}
+                        </p>
                       </div>
                     );
                   })}
@@ -1145,22 +1287,51 @@ export default function GroupDetail() {
                           {filterMember ? filterMember.name : "Everyone"}
                         </span>
                       </span>
-                      <span className="font-bold text-emerald-400 text-sm">₹{total.toFixed(2)}</span>
+                      <span className="font-bold text-emerald-400 text-sm">
+                        ₹{total.toFixed(2)}
+                      </span>
                     </div>
                   ) : (
                     <div className="bg-gray-900 border border-emerald-500/20 rounded-2xl px-4 py-3 space-y-1">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-400">
                           {fromMember ? (
-                            <><span className="text-white font-medium">{fromMember.name}</span> paid {toMember ? <span className="text-white font-medium">{toMember.name}</span> : "everyone"}</>
+                            <>
+                              <span className="text-white font-medium">
+                                {fromMember.name}
+                              </span>{" "}
+                              paid{" "}
+                              {toMember ? (
+                                <span className="text-white font-medium">
+                                  {toMember.name}
+                                </span>
+                              ) : (
+                                "everyone"
+                              )}
+                            </>
                           ) : (
-                            <>Total settlements {toMember ? <>to <span className="text-white font-medium">{toMember.name}</span></> : ""}</>
+                            <>
+                              Total settlements{" "}
+                              {toMember ? (
+                                <>
+                                  to{" "}
+                                  <span className="text-white font-medium">
+                                    {toMember.name}
+                                  </span>
+                                </>
+                              ) : (
+                                ""
+                              )}
+                            </>
                           )}
                         </span>
-                        <span className="font-bold text-emerald-400 text-sm">₹{total.toFixed(2)}</span>
+                        <span className="font-bold text-emerald-400 text-sm">
+                          ₹{total.toFixed(2)}
+                        </span>
                       </div>
                       <p className="text-xs text-gray-500">
-                        {filteredItems.length} settlement{filteredItems.length !== 1 ? "s" : ""}
+                        {filteredItems.length} settlement
+                        {filteredItems.length !== 1 ? "s" : ""}
                       </p>
                     </div>
                   )}
@@ -1337,32 +1508,63 @@ export default function GroupDetail() {
                       const senderId = msg.sender?._id || msg.sender;
                       const isMe = senderId === user?.id;
                       const prevMsg = idx > 0 ? msgs[idx - 1] : null;
-                      const prevSenderId = prevMsg?.sender?._id || prevMsg?.sender;
+                      const prevSenderId =
+                        prevMsg?.sender?._id || prevMsg?.sender;
                       const showAvatar = !isMe && prevSenderId !== senderId;
-                      const showName = !isMe && (idx === 0 || prevSenderId !== senderId);
+                      const showName =
+                        !isMe && (idx === 0 || prevSenderId !== senderId);
 
                       // ── Message content renderer ──
                       const renderContent = () => {
-                        if (msg.type === 'image') return (
-                          <img src={msg.fileUrl} alt="image" className="max-w-[220px] rounded-xl cursor-pointer" onClick={() => window.open(msg.fileUrl, '_blank')} />
-                        );
-                        if (msg.type === 'video') return (
-                          <video src={msg.fileUrl} controls className="max-w-[220px] rounded-xl" />
-                        );
-                        if (msg.type === 'audio') return (
-                          <audio src={msg.fileUrl} controls className="max-w-[220px]" />
-                        );
-                        if (msg.type === 'file') return (
-                          <a href={msg.fileUrl} target="_blank" rel="noreferrer"
-                            className="flex items-center gap-2 text-sm underline">
-                            <FiFile size={16} />
-                            <span className="truncate max-w-[160px]">{msg.fileName || 'Download file'}</span>
-                            <FiDownload size={14} />
-                          </a>
-                        );
-                        if (msg.type === 'poll') {
-                          const totalVotes = msg.poll?.options?.reduce((s, o) => s + (o.votes?.length || 0), 0) || 0;
-                          const myVote = msg.poll?.options?.findIndex(o => o.votes?.some(v => (v._id || v) === user?.id));
+                        if (msg.type === "image")
+                          return (
+                            <img
+                              src={msg.fileUrl}
+                              alt="image"
+                              className="max-w-[220px] rounded-xl cursor-pointer"
+                              onClick={() => window.open(msg.fileUrl, "_blank")}
+                            />
+                          );
+                        if (msg.type === "video")
+                          return (
+                            <video
+                              src={msg.fileUrl}
+                              controls
+                              className="max-w-[220px] rounded-xl"
+                            />
+                          );
+                        if (msg.type === "audio")
+                          return (
+                            <audio
+                              src={msg.fileUrl}
+                              controls
+                              className="max-w-[220px]"
+                            />
+                          );
+                        if (msg.type === "file")
+                          return (
+                            <a
+                              href={msg.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-2 text-sm underline"
+                            >
+                              <FiFile size={16} />
+                              <span className="truncate max-w-[160px]">
+                                {msg.fileName || "Download file"}
+                              </span>
+                              <FiDownload size={14} />
+                            </a>
+                          );
+                        if (msg.type === "poll") {
+                          const totalVotes =
+                            msg.poll?.options?.reduce(
+                              (s, o) => s + (o.votes?.length || 0),
+                              0,
+                            ) || 0;
+                          const myVote = msg.poll?.options?.findIndex((o) =>
+                            o.votes?.some((v) => (v._id || v) === user?.id),
+                          );
                           return (
                             <div className="min-w-[200px]">
                               <p className="font-semibold text-sm mb-3 flex items-center gap-1.5">
@@ -1371,25 +1573,46 @@ export default function GroupDetail() {
                               </p>
                               <div className="space-y-2">
                                 {msg.poll?.options?.map((opt, oi) => {
-                                  const pct = totalVotes > 0 ? Math.round((opt.votes?.length || 0) / totalVotes * 100) : 0;
+                                  const pct =
+                                    totalVotes > 0
+                                      ? Math.round(
+                                          ((opt.votes?.length || 0) /
+                                            totalVotes) *
+                                            100,
+                                        )
+                                      : 0;
                                   const voted = myVote === oi;
                                   return (
-                                    <button key={oi} onClick={() => handleVote(msg._id, oi)}
+                                    <button
+                                      key={oi}
+                                      onClick={() => handleVote(msg._id, oi)}
                                       className={`w-full text-left rounded-xl overflow-hidden border transition ${
-                                        voted ? 'border-emerald-500' : 'border-gray-600 hover:border-gray-400'
-                                      }`}>
+                                        voted
+                                          ? "border-emerald-500"
+                                          : "border-gray-600 hover:border-gray-400"
+                                      }`}
+                                    >
                                       <div className="relative px-3 py-2">
-                                        <div className="absolute inset-0 bg-emerald-500/20 transition-all" style={{ width: `${pct}%` }} />
+                                        <div
+                                          className="absolute inset-0 bg-emerald-500/20 transition-all"
+                                          style={{ width: `${pct}%` }}
+                                        />
                                         <div className="relative flex justify-between items-center">
-                                          <span className="text-xs font-medium">{opt.text}</span>
-                                          <span className="text-xs text-gray-400 ml-2">{pct}%</span>
+                                          <span className="text-xs font-medium">
+                                            {opt.text}
+                                          </span>
+                                          <span className="text-xs text-gray-400 ml-2">
+                                            {pct}%
+                                          </span>
                                         </div>
                                       </div>
                                     </button>
                                   );
                                 })}
                               </div>
-                              <p className="text-xs text-gray-400 mt-2">{totalVotes} vote{totalVotes !== 1 ? 's' : ''}</p>
+                              <p className="text-xs text-gray-400 mt-2">
+                                {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
+                              </p>
                             </div>
                           );
                         }
@@ -1397,8 +1620,10 @@ export default function GroupDetail() {
                       };
 
                       return (
-                        <div key={msg._id}
-                          className={`flex items-end gap-2 mb-1 group ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                        <div
+                          key={msg._id}
+                          className={`flex items-end gap-2 mb-1 group ${isMe ? "flex-row-reverse" : "flex-row"}`}
+                        >
                           <div className="w-7 shrink-0">
                             {showAvatar && !isMe && (
                               <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-xs font-bold text-gray-300">
@@ -1406,29 +1631,47 @@ export default function GroupDetail() {
                               </div>
                             )}
                           </div>
-                          <div className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col`}>
+                          <div
+                            className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col`}
+                          >
                             {showName && (
-                              <p className="text-xs text-gray-500 mb-1 px-1">{msg.sender?.name}</p>
+                              <p className="text-xs text-gray-500 mb-1 px-1">
+                                {msg.sender?.name}
+                              </p>
                             )}
-                            <div className={`relative rounded-2xl text-sm leading-relaxed ${
-                              msg.type === 'poll'
-                                ? (isMe ? 'bg-emerald-900/60 text-white px-4 py-3 rounded-br-md' : 'bg-gray-800 text-gray-100 px-4 py-3 rounded-bl-md')
-                                : msg.type === 'image' || msg.type === 'video'
-                                  ? 'overflow-hidden'
-                                  : (isMe ? 'bg-emerald-600 text-white px-4 py-2.5 rounded-br-md' : 'bg-gray-800 text-gray-100 px-4 py-2.5 rounded-bl-md')
-                            }`}>
+                            <div
+                              className={`relative rounded-2xl text-sm leading-relaxed ${
+                                msg.type === "poll"
+                                  ? isMe
+                                    ? "bg-emerald-900/60 text-white px-4 py-3 rounded-br-md"
+                                    : "bg-gray-800 text-gray-100 px-4 py-3 rounded-bl-md"
+                                  : msg.type === "image" || msg.type === "video"
+                                    ? "overflow-hidden"
+                                    : isMe
+                                      ? "bg-emerald-600 text-white px-4 py-2.5 rounded-br-md"
+                                      : "bg-gray-800 text-gray-100 px-4 py-2.5 rounded-bl-md"
+                              }`}
+                            >
                               {renderContent()}
-                              {msg.type !== 'poll' && (
-                                <p className={`text-xs mt-1 ${
-                                  msg.type === 'image' || msg.type === 'video'
-                                    ? 'px-2 pb-1 text-gray-300'
-                                    : isMe ? 'text-emerald-200' : 'text-gray-500'
-                                }`}>{formatTime(msg.createdAt)}</p>
+                              {msg.type !== "poll" && (
+                                <p
+                                  className={`text-xs mt-1 ${
+                                    msg.type === "image" || msg.type === "video"
+                                      ? "px-2 pb-1 text-gray-300"
+                                      : isMe
+                                        ? "text-emerald-200"
+                                        : "text-gray-500"
+                                  }`}
+                                >
+                                  {formatTime(msg.createdAt)}
+                                </p>
                               )}
                               {isMe && (
-                                <button onClick={() => handleDeleteMessage(msg._id)}
+                                <button
+                                  onClick={() => handleDeleteMessage(msg._id)}
                                   className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-red-500 text-white hidden group-hover:flex items-center justify-center transition"
-                                  title="Delete">
+                                  title="Delete"
+                                >
                                   <FiX size={10} />
                                 </button>
                               )}
@@ -1444,9 +1687,27 @@ export default function GroupDetail() {
             </div>
 
             {/* ── Hidden file inputs ───────────────────────────── */}
-            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
-            <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleFileSelect} />
-            <input ref={fileInputRef}  type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar" className="hidden" onChange={handleFileSelect} />
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+              className="hidden"
+              onChange={handleFileSelect}
+            />
 
             {/* ── Input bar ────────────────────────────────────── */}
             <div className="border-t border-gray-800 py-3 bg-gray-950">
@@ -1454,13 +1715,48 @@ export default function GroupDetail() {
               {showAttachMenu && (
                 <div className="mb-3 p-2 bg-gray-900 border border-gray-700 rounded-2xl flex gap-2 flex-wrap">
                   {[
-                    { icon: <FiImage size={18} />, label: 'Image', color: 'text-blue-400', action: () => { setShowAttachMenu(false); imageInputRef.current?.click(); } },
-                    { icon: <FiVideo size={18} />, label: 'Video', color: 'text-purple-400', action: () => { setShowAttachMenu(false); videoInputRef.current?.click(); } },
-                    { icon: <FiFile size={18} />,  label: 'Document', color: 'text-yellow-400', action: () => { setShowAttachMenu(false); fileInputRef.current?.click(); } },
-                    { icon: <FiBarChart2 size={18} />, label: 'Poll', color: 'text-emerald-400', action: () => { setShowAttachMenu(false); setShowPollModal(true); } },
+                    {
+                      icon: <FiImage size={18} />,
+                      label: "Image",
+                      color: "text-blue-400",
+                      action: () => {
+                        setShowAttachMenu(false);
+                        imageInputRef.current?.click();
+                      },
+                    },
+                    {
+                      icon: <FiVideo size={18} />,
+                      label: "Video",
+                      color: "text-purple-400",
+                      action: () => {
+                        setShowAttachMenu(false);
+                        videoInputRef.current?.click();
+                      },
+                    },
+                    {
+                      icon: <FiFile size={18} />,
+                      label: "Document",
+                      color: "text-yellow-400",
+                      action: () => {
+                        setShowAttachMenu(false);
+                        fileInputRef.current?.click();
+                      },
+                    },
+                    {
+                      icon: <FiBarChart2 size={18} />,
+                      label: "Poll",
+                      color: "text-emerald-400",
+                      action: () => {
+                        setShowAttachMenu(false);
+                        setShowPollModal(true);
+                      },
+                    },
                   ].map(({ icon, label, color, action }) => (
-                    <button key={label} onClick={action}
-                      className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 transition ${color}`}>
+                    <button
+                      key={label}
+                      onClick={action}
+                      className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-gray-800 hover:bg-gray-700 transition ${color}`}
+                    >
                       {icon}
                       <span className="text-xs text-gray-300">{label}</span>
                     </button>
@@ -1476,40 +1772,69 @@ export default function GroupDetail() {
                 </div>
               )}
 
-              <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+              <form
+                onSubmit={handleSendMessage}
+                className="flex items-center gap-2"
+              >
                 {/* + Attach button */}
-                <button type="button"
-                  onClick={() => setShowAttachMenu(v => !v)}
+                <button
+                  type="button"
+                  onClick={() => setShowAttachMenu((v) => !v)}
                   className={`w-10 h-10 rounded-2xl flex items-center justify-center transition shrink-0 ${
-                    showAttachMenu ? 'bg-emerald-500 text-white' : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
-                  }`}>
-                  <FiPlus size={18} className={`transition-transform ${showAttachMenu ? 'rotate-45' : ''}`} />
+                    showAttachMenu
+                      ? "bg-emerald-500 text-white"
+                      : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                  }`}
+                >
+                  <FiPlus
+                    size={18}
+                    className={`transition-transform ${showAttachMenu ? "rotate-45" : ""}`}
+                  />
                 </button>
 
                 {/* Text input */}
-                <input ref={chatInputRef} type="text" value={chatInput}
+                <input
+                  ref={chatInputRef}
+                  type="text"
+                  value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder={recordingAudio ? 'Recording audio...' : 'Type a message...'}
+                  placeholder={
+                    recordingAudio ? "Recording audio..." : "Type a message..."
+                  }
                   disabled={recordingAudio}
                   className="flex-1 bg-gray-900 border border-gray-700 text-white rounded-2xl px-4 py-3 text-sm focus:outline-none focus:border-emerald-500 transition placeholder-gray-600 disabled:opacity-50"
                   maxLength={1000}
                 />
 
                 {/* Mic button */}
-                <button type="button"
+                <button
+                  type="button"
                   onClick={recordingAudio ? stopRecording : startRecording}
                   disabled={chatSending}
                   className={`w-10 h-10 rounded-2xl flex items-center justify-center transition shrink-0 disabled:opacity-40 ${
-                    recordingAudio ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700'
-                  }`}>
-                  {recordingAudio ? <FiMicOff size={16} /> : <FiMic size={16} />}
+                    recordingAudio
+                      ? "bg-red-500 hover:bg-red-600 text-white"
+                      : "bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700"
+                  }`}
+                >
+                  {recordingAudio ? (
+                    <FiMicOff size={16} />
+                  ) : (
+                    <FiMic size={16} />
+                  )}
                 </button>
 
                 {/* Send button */}
-                <button type="submit"
+                <button
+                  type="submit"
                   disabled={!chatInput.trim() || chatSending || recordingAudio}
-                  className="w-10 h-10 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center transition shrink-0">
-                  {chatSending ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <FiSend size={16} />}
+                  className="w-10 h-10 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center transition shrink-0"
+                >
+                  {chatSending ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <FiSend size={16} />
+                  )}
                 </button>
               </form>
             </div>
@@ -1528,7 +1853,8 @@ export default function GroupDetail() {
                 <div>
                   <h2 className="text-lg font-semibold">Group Video Call</h2>
                   <p className="text-sm text-gray-400 mt-1">
-                    Free group video chat using Jitsi Meet. Only signed-in group members can create and open the call.
+                    Free group video chat using Jitsi Meet. Only signed-in group
+                    members can create and open the call.
                   </p>
                 </div>
                 <button
@@ -1536,7 +1862,7 @@ export default function GroupDetail() {
                   disabled={videoLoading}
                   className="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white py-3 px-4 rounded-xl text-sm font-medium transition disabled:opacity-50"
                 >
-                  {videoLoading ? 'Starting call...' : 'Start / Open call'}
+                  {videoLoading ? "Starting call..." : "Start / Open call"}
                 </button>
               </div>
 
@@ -1549,7 +1875,9 @@ export default function GroupDetail() {
               {videoRoom ? (
                 <div className="space-y-4">
                   <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4">
-                    <p className="text-xs text-gray-500 mb-2">Invite link for group members</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Invite link for group members
+                    </p>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input
                         readOnly
@@ -1586,15 +1914,19 @@ export default function GroupDetail() {
                   <div className="rounded-3xl overflow-hidden border border-gray-800 bg-black">
                     <div className="px-4 py-3 border-b border-gray-800 bg-gray-950 flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-semibold">Room: {videoRoom.roomId}</p>
-                        <p className="text-xs text-gray-500">Share only with group members.</p>
+                        <p className="text-sm font-semibold">
+                          Room: {videoRoom.roomId}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Share only with group members.
+                        </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => setShowVideoIframe((prev) => !prev)}
                         className="bg-gray-800 hover:bg-gray-700 text-white px-3 py-2 rounded-xl text-xs"
                       >
-                        {showVideoIframe ? 'Hide live view' : 'Show live view'}
+                        {showVideoIframe ? "Hide live view" : "Show live view"}
                       </button>
                     </div>
                     {showVideoIframe ? (
@@ -1606,14 +1938,16 @@ export default function GroupDetail() {
                       />
                     ) : (
                       <div className="p-6 text-gray-400 text-sm">
-                        Click <strong>Join call in app</strong> to open the embedded meeting window.
+                        Click <strong>Join call in app</strong> to open the
+                        embedded meeting window.
                       </div>
                     )}
                   </div>
                 </div>
               ) : (
                 <div className="bg-gray-950 border border-gray-800 rounded-2xl p-4 text-sm text-gray-400">
-                  No active video room exists yet. Click start to create a secure group call.
+                  No active video room exists yet. Click start to create a
+                  secure group call.
                 </div>
               )}
             </div>
@@ -1629,18 +1963,23 @@ export default function GroupDetail() {
               <h2 className="text-lg font-bold flex items-center gap-2">
                 <FiBarChart2 className="text-emerald-400" /> Create Poll
               </h2>
-              <button onClick={() => setShowPollModal(false)} className="text-gray-400 hover:text-white transition">
+              <button
+                onClick={() => setShowPollModal(false)}
+                className="text-gray-400 hover:text-white transition"
+              >
                 <FiX size={20} />
               </button>
             </div>
 
             <div className="space-y-4">
               <div>
-                <label className="text-xs text-gray-400 mb-1 block">Question</label>
+                <label className="text-xs text-gray-400 mb-1 block">
+                  Question
+                </label>
                 <input
                   type="text"
                   value={pollQuestion}
-                  onChange={e => setPollQuestion(e.target.value)}
+                  onChange={(e) => setPollQuestion(e.target.value)}
                   placeholder="Ask something..."
                   className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition"
                   maxLength={200}
@@ -1648,14 +1987,16 @@ export default function GroupDetail() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-400 mb-2 block">Options</label>
+                <label className="text-xs text-gray-400 mb-2 block">
+                  Options
+                </label>
                 <div className="space-y-2">
                   {pollOptions.map((opt, i) => (
                     <div key={i} className="flex gap-2">
                       <input
                         type="text"
                         value={opt}
-                        onChange={e => {
+                        onChange={(e) => {
                           const copy = [...pollOptions];
                           copy[i] = e.target.value;
                           setPollOptions(copy);
@@ -1665,8 +2006,14 @@ export default function GroupDetail() {
                         maxLength={100}
                       />
                       {pollOptions.length > 2 && (
-                        <button onClick={() => setPollOptions(pollOptions.filter((_, j) => j !== i))}
-                          className="text-gray-500 hover:text-red-400 transition">
+                        <button
+                          onClick={() =>
+                            setPollOptions(
+                              pollOptions.filter((_, j) => j !== i),
+                            )
+                          }
+                          className="text-gray-500 hover:text-red-400 transition"
+                        >
                           <FiX size={16} />
                         </button>
                       )}
@@ -1674,17 +2021,26 @@ export default function GroupDetail() {
                   ))}
                 </div>
                 {pollOptions.length < 6 && (
-                  <button onClick={() => setPollOptions([...pollOptions, ''])}
-                    className="mt-2 text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition">
+                  <button
+                    onClick={() => setPollOptions([...pollOptions, ""])}
+                    className="mt-2 text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition"
+                  >
                     <FiPlus size={12} /> Add option
                   </button>
                 )}
               </div>
 
-              <button onClick={handleCreatePoll} disabled={pollCreating}
-                className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl font-semibold transition flex items-center justify-center gap-2">
-                {pollCreating ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <FiBarChart2 size={16} />}
-                {pollCreating ? 'Creating...' : 'Create Poll'}
+              <button
+                onClick={handleCreatePoll}
+                disabled={pollCreating}
+                className="w-full py-3 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl font-semibold transition flex items-center justify-center gap-2"
+              >
+                {pollCreating ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FiBarChart2 size={16} />
+                )}
+                {pollCreating ? "Creating..." : "Create Poll"}
               </button>
             </div>
           </div>
@@ -1936,6 +2292,18 @@ export default function GroupDetail() {
             </div>
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-300 mb-2">
+                📝 Remarks (optional)
+              </label>
+              <input
+                type="text"
+                value={settlementNote}
+                onChange={(e) => setSettlementNote(e.target.value)}
+                placeholder="e.g., For dinner, electricity bill..."
+                className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition text-sm placeholder-gray-600"
+              />
+            </div>
+            <div className="mb-5">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
                 Related expenses
               </label>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
@@ -2053,124 +2421,268 @@ export default function GroupDetail() {
       <button
         onClick={() => setShowAIChat(true)}
         style={{
-          position: 'fixed', bottom: '88px', right: '20px', zIndex: 9999,
-          width: '56px', height: '56px', borderRadius: '50%',
-          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-          border: 'none', cursor: 'pointer', boxShadow: '0 4px 24px rgba(99,102,241,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'transform 0.2s',
+          position: "fixed",
+          bottom: "88px",
+          right: "20px",
+          zIndex: 9999,
+          width: "56px",
+          height: "56px",
+          borderRadius: "50%",
+          background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+          border: "none",
+          cursor: "pointer",
+          boxShadow: "0 4px 24px rgba(99,102,241,0.5)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "transform 0.2s",
         }}
-        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
-        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
         title="AI Expense Assistant"
       >
-        <span style={{ fontSize: '24px' }}>🤖</span>
+        <span style={{ fontSize: "24px" }}>🤖</span>
       </button>
 
       {/* ── AI Expense Assistant Modal ─────────────────────────────────────── */}
       {showAIChat && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 10000,
-          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        }}>
-          <div style={{
-            background: '#0f172a', borderRadius: '24px 24px 0 0',
-            width: '100%', maxWidth: '480px', height: '85vh',
-            display: 'flex', flexDirection: 'column',
-            border: '1px solid rgba(99,102,241,0.3)',
-            boxShadow: '0 -8px 40px rgba(99,102,241,0.2)',
-          }}>
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10000,
+            background: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "flex-end",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#0f172a",
+              borderRadius: "24px 24px 0 0",
+              width: "100%",
+              maxWidth: "480px",
+              height: "85vh",
+              display: "flex",
+              flexDirection: "column",
+              border: "1px solid rgba(99,102,241,0.3)",
+              boxShadow: "0 -8px 40px rgba(99,102,241,0.2)",
+            }}
+          >
             {/* Header */}
-            <div style={{
-              padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex', alignItems: 'center', gap: '12px',
-              background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1))',
-              borderRadius: '24px 24px 0 0',
-            }}>
-              <div style={{
-                width: '40px', height: '40px', borderRadius: '50%',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px',
-              }}>🤖</div>
-              <div style={{ flex: 1 }}>
-                <p style={{ margin: 0, fontWeight: 700, color: '#fff', fontSize: '15px' }}>AI Expense Assistant</p>
-                <p style={{ margin: 0, fontSize: '12px', color: '#a78bfa' }}>Hindi • English • Hinglish</p>
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid rgba(255,255,255,0.08)",
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                background:
+                  "linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.1))",
+                borderRadius: "24px 24px 0 0",
+              }}
+            >
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "20px",
+                }}
+              >
+                🤖
               </div>
-              <button onClick={() => setShowAIChat(false)} style={{
-                background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
-                borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer',
-                fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>✕</button>
+              <div style={{ flex: 1 }}>
+                <p
+                  style={{
+                    margin: 0,
+                    fontWeight: 700,
+                    color: "#fff",
+                    fontSize: "15px",
+                  }}
+                >
+                  AI Expense Assistant
+                </p>
+                <p style={{ margin: 0, fontSize: "12px", color: "#a78bfa" }}>
+                  Hindi • English • Hinglish
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAIChat(false)}
+                style={{
+                  background: "rgba(255,255,255,0.1)",
+                  border: "none",
+                  color: "#fff",
+                  borderRadius: "50%",
+                  width: "32px",
+                  height: "32px",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ✕
+              </button>
             </div>
             {/* Messages */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div
+              style={{
+                flex: 1,
+                overflowY: "auto",
+                padding: "16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+              }}
+            >
               {aiMessages.map((msg, i) => (
-                <div key={i} style={{
-                  display: 'flex', flexDirection: 'column',
-                  alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '4px',
-                }}>
-                  <div style={{
-                    maxWidth: '85%', padding: '12px 16px',
-                    borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-                    background: msg.role === 'user' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.07)',
-                    color: '#fff', fontSize: '14px', lineHeight: '1.6',
-                    border: msg.role === 'user' ? 'none' : '1px solid rgba(255,255,255,0.1)',
-                    whiteSpace: 'pre-wrap',
-                  }}>
-                    {msg.text.replace(/\*\*(.*?)\*\*/g, '$1')}
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: msg.role === "user" ? "flex-end" : "flex-start",
+                    gap: "4px",
+                  }}
+                >
+                  <div
+                    style={{
+                      maxWidth: "85%",
+                      padding: "12px 16px",
+                      borderRadius:
+                        msg.role === "user"
+                          ? "18px 18px 4px 18px"
+                          : "18px 18px 18px 4px",
+                      background:
+                        msg.role === "user"
+                          ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
+                          : "rgba(255,255,255,0.07)",
+                      color: "#fff",
+                      fontSize: "14px",
+                      lineHeight: "1.6",
+                      border:
+                        msg.role === "user"
+                          ? "none"
+                          : "1px solid rgba(255,255,255,0.1)",
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {msg.text.replace(/\*\*(.*?)\*\*/g, "$1")}
                   </div>
                   {msg.isPreview && aiPreview && (
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                      <button onClick={handleAIConfirm} style={{
-                        background: 'linear-gradient(135deg, #10b981, #059669)',
-                        color: '#fff', border: 'none', borderRadius: '12px',
-                        padding: '8px 20px', cursor: 'pointer', fontWeight: 600, fontSize: '14px',
-                      }}>✅ Confirm</button>
-                      <button onClick={handleAIReject} style={{
-                        background: 'rgba(239,68,68,0.2)', color: '#f87171',
-                        border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px',
-                        padding: '8px 20px', cursor: 'pointer', fontWeight: 600, fontSize: '14px',
-                      }}>✏️ Edit</button>
+                    <div
+                      style={{ display: "flex", gap: "8px", marginTop: "4px" }}
+                    >
+                      <button
+                        onClick={handleAIConfirm}
+                        style={{
+                          background:
+                            "linear-gradient(135deg, #10b981, #059669)",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "12px",
+                          padding: "8px 20px",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                        }}
+                      >
+                        ✅ Confirm
+                      </button>
+                      <button
+                        onClick={handleAIReject}
+                        style={{
+                          background: "rgba(239,68,68,0.2)",
+                          color: "#f87171",
+                          border: "1px solid rgba(239,68,68,0.3)",
+                          borderRadius: "12px",
+                          padding: "8px 20px",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: "14px",
+                        }}
+                      >
+                        ✏️ Edit
+                      </button>
                     </div>
                   )}
                 </div>
               ))}
               {aiLoading && (
-                <div style={{ padding: '12px 16px', borderRadius: '18px 18px 18px 4px',
-                  background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
-                  alignSelf: 'flex-start' }}>
-                  <span style={{ color: '#a78bfa' }}>⚡ Thinking...</span>
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: "18px 18px 18px 4px",
+                    background: "rgba(255,255,255,0.07)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  <span style={{ color: "#a78bfa" }}>⚡ Thinking...</span>
                 </div>
               )}
               <div ref={aiChatEndRef} />
             </div>
             {/* Input */}
-            <div style={{
-              padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex', gap: '10px', alignItems: 'center',
-            }}>
+            <div
+              style={{
+                padding: "12px 16px",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+              }}
+            >
               <input
                 value={aiInput}
-                onChange={e => setAiInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleAISend()}
+                onChange={(e) => setAiInput(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !e.shiftKey && handleAISend()
+                }
                 placeholder='e.g. "Sahil ne dinner pay kiya 1200 ka"'
                 style={{
-                  flex: 1, background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.15)',
-                  borderRadius: '14px', padding: '12px 16px', color: '#fff', fontSize: '14px', outline: 'none',
+                  flex: 1,
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  borderRadius: "14px",
+                  padding: "12px 16px",
+                  color: "#fff",
+                  fontSize: "14px",
+                  outline: "none",
                 }}
               />
-              <button onClick={handleAISend} disabled={aiLoading || !aiInput.trim()} style={{
-                width: '44px', height: '44px', borderRadius: '50%', border: 'none', cursor: 'pointer',
-                background: aiInput.trim() ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'rgba(255,255,255,0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px',
-              }}>🚀</button>
+              <button
+                onClick={handleAISend}
+                disabled={aiLoading || !aiInput.trim()}
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "50%",
+                  border: "none",
+                  cursor: "pointer",
+                  background: aiInput.trim()
+                    ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
+                    : "rgba(255,255,255,0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "18px",
+                }}
+              >
+                🚀
+              </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 
@@ -2378,9 +2890,11 @@ export default function GroupDetail() {
             </div>
             <div className="min-w-0">
               <h3 className="font-semibold truncate">{getSettlementText(s)}</h3>
-              <p className="text-xs text-gray-500">
-                {item.date.toLocaleDateString("en-IN")}
-              </p>
+              {s.note && (
+                <p className="text-xs text-purple-300 mt-0.5 truncate">
+                  📝 {s.note}
+                </p>
+              )}
               {allExpenses.length > 0 && (
                 <p className="text-xs text-emerald-300 mt-0.5 truncate">
                   For {allExpenses.map((e) => e.description).join(", ")}
@@ -2538,7 +3052,9 @@ export default function GroupDetail() {
       (sum, item) => sum + Number(item.amount || 0),
       0,
     );
-    const hasPendingAmount = rows.some((item) => Number(item.amount || 0) > 0.009);
+    const hasPendingAmount = rows.some(
+      (item) => Number(item.amount || 0) > 0.009,
+    );
 
     const handleReminder = async (item) => {
       const amount = Number(item.amount || 0);
@@ -2571,7 +3087,9 @@ export default function GroupDetail() {
             <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
               <FiCheckCircle className="text-emerald-400" size={26} />
             </div>
-            <p className="text-gray-400">No one owes you money in this group.</p>
+            <p className="text-gray-400">
+              No one owes you money in this group.
+            </p>
           </div>
         </div>
       );
@@ -2607,10 +3125,16 @@ export default function GroupDetail() {
                 className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                    amount > 0.009 ? "bg-emerald-500/15" : "bg-gray-800"
-                  }`}>
-                    <FiUsers className={amount > 0.009 ? "text-emerald-400" : "text-gray-500"} />
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                      amount > 0.009 ? "bg-emerald-500/15" : "bg-gray-800"
+                    }`}
+                  >
+                    <FiUsers
+                      className={
+                        amount > 0.009 ? "text-emerald-400" : "text-gray-500"
+                      }
+                    />
                   </div>
                   <div className="min-w-0">
                     <p className="font-medium truncate">
@@ -2622,9 +3146,11 @@ export default function GroupDetail() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-3">
-                  <span className={`font-bold text-lg shrink-0 ${
-                    amount > 0.009 ? "text-emerald-400" : "text-gray-500"
-                  }`}>
+                  <span
+                    className={`font-bold text-lg shrink-0 ${
+                      amount > 0.009 ? "text-emerald-400" : "text-gray-500"
+                    }`}
+                  >
                     ₹{amount.toFixed(2)}
                   </span>
                   <button
