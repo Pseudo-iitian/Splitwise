@@ -21,10 +21,12 @@ export default function Profile() {
   const [savingUpi,    setSavingUpi]    = useState(false);
   const [verifying,    setVerifying]    = useState(false);
   const [upiVerified,  setUpiVerified]  = useState(user?.upiVerified || false);
+  const [upiStatus,    setUpiStatus]    = useState(user?.upiVerificationStatus || (user?.upiVerified ? 'verified' : 'none'));
 
   useEffect(() => {
     setForm({ name: user?.name || '', upiId: user?.upiId || '' });
     setUpiVerified(user?.upiVerified || false);
+    setUpiStatus(user?.upiVerificationStatus || (user?.upiVerified ? 'verified' : 'none'));
   }, [user]);
 
   // ── Save Name ──────────────────────────────────────────────────────────────
@@ -49,6 +51,7 @@ export default function Profile() {
       const res = await updateProfile({ upiId: form.upiId.trim() });
       dispatch(setUser(res.data.user));
       setUpiVerified(false);
+      setUpiStatus('none');
       toast.success('UPI ID saved!');
       setEditingUpi(false);
     } catch (err) {
@@ -63,8 +66,18 @@ export default function Profile() {
     try {
       const res = await verifyUpi({ upiId: form.upiId.trim() });
       dispatch(setUser(res.data.user));
-      setUpiVerified(true);
-      toast.success(res.data.message || 'UPI ID verified! ✅');
+      setUpiVerified(false);
+      if (res.data.formatValid) {
+        setUpiStatus('formatOnly');
+        toast.success(res.data.message || 'UPI format is valid. Full verification requires provider integration.');
+      } else if (res.data.verified) {
+        setUpiStatus('verified');
+        setUpiVerified(true);
+        toast.success(res.data.message || 'UPI ID verified! ✅');
+      } else {
+        setUpiStatus('none');
+        toast.success(res.data.message || 'UPI check completed.');
+      }
     } catch (err) {
       const errData = err.response?.data;
       toast.error(errData?.error || 'Verification failed');
@@ -175,9 +188,13 @@ export default function Profile() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0">
                     <p className="text-white font-medium truncate">{user.upiId}</p>
-                    {upiVerified ? (
+                    {upiStatus === 'verified' ? (
                       <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full shrink-0">
                         <FiShield size={10} /> Verified
+                      </span>
+                    ) : upiStatus === 'formatOnly' ? (
+                      <span className="flex items-center gap-1 text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full shrink-0">
+                        <FiShield size={10} /> Format validated
                       </span>
                     ) : (
                       <span className="flex items-center gap-1 text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 px-2 py-0.5 rounded-full shrink-0">
@@ -202,7 +219,7 @@ export default function Profile() {
               )}
 
               {/* Verify button — show if UPI added but not verified */}
-              {user?.upiId && !upiVerified && (
+              {user?.upiId && upiStatus !== 'verified' && (
                 <button
                   onClick={handleVerifyUpi}
                   disabled={verifying}
@@ -213,9 +230,17 @@ export default function Profile() {
                 </button>
               )}
 
-              {upiVerified && (
+              {upiStatus === 'verified' && (
                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
                   <p className="text-emerald-400 text-sm">✅ Your UPI ID is verified and ready for payments!</p>
+                </div>
+              )}
+
+              {upiStatus === 'formatOnly' && (
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-center">
+                  <p className="text-yellow-300 text-sm">
+                    ⚠️ UPI format is valid, but this app does not yet support bank-level UPI confirmation.
+                  </p>
                 </div>
               )}
             </div>

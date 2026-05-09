@@ -7,6 +7,11 @@ const userSchema = new mongoose.Schema({
   avatar:   String,
   upiId:    { type: String, default: '' },       // e.g. "name@gpay"
   upiVerified: { type: Boolean, default: false }, // verified flag
+  upiVerificationStatus: {
+    type: String,
+    enum: ['none', 'formatOnly', 'verified'],
+    default: 'none'
+  },
   friends:  [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true });
 

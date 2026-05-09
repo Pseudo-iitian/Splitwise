@@ -57,8 +57,9 @@ router.put('/profile', auth, async (req, res) => {
     const updates = {};
     if (name?.trim())  updates.name  = name.trim();
     if (upiId !== undefined) {
-      updates.upiId       = upiId.trim();
-      updates.upiVerified = false; // reset verified on change
+      updates.upiId                = upiId.trim();
+      updates.upiVerified          = false; // reset verified on change
+      updates.upiVerificationStatus = 'none';
     }
 
     const user = await User.findByIdAndUpdate(
@@ -74,47 +75,47 @@ router.put('/profile', auth, async (req, res) => {
 });
 
 // ─── Verify UPI ID ─────────────────────────────────────────────────────────────
-// UPI verification: basic format check + mark verified
-// Real bank-level verification needs Razorpay/Cashfree — this does format validation
+// UPI verification: format validation only.
+// Real bank-level verification requires an external UPI/payment provider.
 router.post('/verify-upi', auth, async (req, res) => {
   try {
     const { upiId } = req.body;
     if (!upiId?.trim()) return res.status(400).json({ error: 'UPI ID required' });
 
+    const normalizedUpiId = upiId.trim().toLowerCase();
+
     // ── UPI format validation ─────────────────────────────────────────────────
-    // Valid formats: name@bank, number@gpay, number@paytm, name@upi etc.
-    const upiRegex = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
-    if (!upiRegex.test(upiId.trim())) {
+    // Valid formats include: name@bank, number@gpay, number@paytm, name@upi, etc.
+    const upiRegex = /^[a-zA-Z0-9](?:[a-zA-Z0-9.\-_]{0,255})@[a-zA-Z0-9](?:[a-zA-Z0-9.\-_]{0,63})$/;
+    if (!upiRegex.test(normalizedUpiId)) {
       return res.status(400).json({ error: 'Invalid UPI ID format. Example: name@gpay or 9876543210@paytm' });
     }
 
-    // ── Check known VPAs (Virtual Payment Addresses) ──────────────────────────
-    const knownHandles = [
-      'gpay', 'oksbi', 'okaxis', 'okicici', 'okhdfcbank',
-      'paytm', 'ybl', 'ibl', 'axl', 'upi', 'freecharge',
-      'apl', 'bhim', 'sbi', 'hdfc', 'icici', 'axis',
-      'kotak', 'indus', 'pnb', 'bob', 'cnrb', 'aubank',
-      'rapl', 'jupiteraxis', 'ikwik', 'phonepe', 'rbl',
-    ];
-    const handle = upiId.split('@')[1]?.toLowerCase();
-    if (!knownHandles.includes(handle)) {
-      return res.status(400).json({ 
-        error: `Unknown UPI handle "@${handle}". Please check your UPI ID.`,
-        hint:  'Common handles: @gpay, @paytm, @ybl, @oksbi, @okhdfcbank'
-      });
-    }
-
-    // ── Mark as verified ──────────────────────────────────────────────────────
+    // ── Keep verification safe until a real provider integration exists ───────
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { $set: { upiId: upiId.trim(), upiVerified: true } },
+      {
+        $set: {
+          upiId: normalizedUpiId,
+          upiVerified: false,
+          upiVerificationStatus: 'formatOnly'
+        }
+      },
       { new: true }
     ).select('-password');
 
-    res.json({ 
-      verified: true, 
-      message: 'UPI ID verified successfully! ✅',
-      user: { id: user._id, name: user.name, email: user.email, upiId: user.upiId, upiVerified: user.upiVerified }
+    res.json({
+      verified: false,
+      formatValid: true,
+      message: 'UPI format is valid. Full verification requires payment provider integration.',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        upiId: user.upiId,
+        upiVerified: user.upiVerified,
+        upiVerificationStatus: user.upiVerificationStatus
+      }
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
