@@ -4,7 +4,7 @@
  *
  * Run: node scripts/fixSettledSplits.js
  */
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+require('../config/loadEnv')();
 const mongoose = require('mongoose');
 const Settlement = require('../models/Settlement');
 const Expense    = require('../models/Expense');

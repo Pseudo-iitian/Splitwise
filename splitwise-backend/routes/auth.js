@@ -4,6 +4,7 @@ const bcrypt   = require('bcryptjs');
 const jwt      = require('jsonwebtoken');
 const User     = require('../models/User');
 const auth     = require('../middleware/auth');
+const { loginSchema } = require('../middleware/validation');
 
 // ─── Register ─────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
@@ -24,6 +25,9 @@ router.post('/register', async (req, res) => {
 // ─── Login ────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
+    const { error } = loginSchema.validate(req.body);
+    if (error) return res.status(400).json({ msg: error.details[0].message });
+
     const { email, password } = req.body;
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ msg: 'Invalid credentials' });

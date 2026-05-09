@@ -1,4 +1,5 @@
-require('dotenv').config();
+const loadEnv = require('./config/loadEnv');
+loadEnv();
 const express  = require('express');
 const mongoose = require('mongoose');
 const cors     = require('cors');
@@ -13,13 +14,17 @@ const app = express();
 // ─────────────────────────────────────────────────────────
 // ✅ CORS CONFIG
 // ─────────────────────────────────────────────────────────
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [
+      'http://localhost:5173',
+      'https://splitwise-tres.vercel.app',
+      'https://splitwise-five-phi.vercel.app',
+      'https://splitwise-27cq.onrender.com'
+    ];
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'https://splitwise-tres.vercel.app',
-    'https://splitwise-five-phi.vercel.app',
-    'https://splitwise-27cq.onrender.com'
-  ],
+  origin: allowedOrigins,
   credentials: true
 }));
 
@@ -91,6 +96,7 @@ connectDB()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌱 Environment: ${process.env.APP_ENV} (${process.env.LOADED_ENV_FILE})`);
       startReminderScheduler();
     });
   })

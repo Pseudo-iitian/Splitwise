@@ -720,7 +720,10 @@ export default function GroupDetail() {
         className={`max-w-2xl mx-auto px-4 sm:px-6 ${activeTab === "chat" ? "py-0" : "py-6"}`}
       >
         {loading ? (
-          <div className="text-center text-gray-400 py-20">Loading...</div>
+          <div className="flex flex-col items-center justify-center py-40">
+            <div className="w-12 h-12 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-4" />
+            <p className="text-gray-400 animate-pulse">Loading group details...</p>
+          </div>
         ) : activeTab === "expenses" ? (
           /* ── EXPENSES TAB ──────────────────────────────────────── */
           <div className="space-y-3 py-6">

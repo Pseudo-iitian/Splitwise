@@ -43,9 +43,14 @@ function preserveSettledSplits(newSplits = [], existingSplits = []) {
   });
 }
 
+const { expenseSchema } = require('../middleware/validation');
+
 // ─── POST /api/expenses — Add expense ────────────────────────────────────────
 router.post('/', auth, async (req, res) => {
   try {
+    const { error } = expenseSchema.validate(req.body);
+    if (error) return res.status(400).json({ error: error.details[0].message });
+
     const { description, amount, groupId, paidBy, paidByMultiple, members, splitType, splits } = req.body;
 
     let computedSplits;
