@@ -6,6 +6,7 @@ const cors     = require('cors');
 const wishlistRoutes = require('./routes/wishlist');
 const chatRoutes     = require('./routes/chat');
 const aiAssistRoutes = require('./routes/aiAssist');
+const { startReminderScheduler } = require('./utils/reminderScheduler');
 
 const app = express();
 
@@ -64,6 +65,7 @@ const connectDB = async () => {
 app.use('/api/auth',        require('./routes/auth'));
 app.use('/api/expenses',    require('./routes/expenses'));
 app.use('/api/settlements', require('./routes/settlements'));
+app.use('/api/reminders',   require('./routes/reminders'));
 app.use('/api/wishlist',    wishlistRoutes);
 app.use('/api/groups',      require('./routes/groups'));
 app.use('/api/groups/:groupId/ai-assist', aiAssistRoutes);
@@ -89,6 +91,7 @@ connectDB()
   .then(() => {
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      startReminderScheduler();
     });
   })
   .catch((err) => {

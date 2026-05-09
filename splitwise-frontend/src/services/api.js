@@ -23,6 +23,8 @@ export const createGroup = (data)    => api.post('/groups', data);
 export const getDetailedBalances = (groupId) => api.get(`/groups/${groupId}/detailed-balances`);
 export const getSettlementSummary = (groupId) => api.get(`/groups/${groupId}/settlement-summary`);
 export const getGroupHistory = (groupId) => api.get(`/groups/${groupId}/history`);
+export const sendPaymentReminder = (groupId, memberId) =>
+  api.post(`/reminders/groups/${groupId}/payment/${memberId}`);
 
 // Expenses
 export const getExpenses = (groupId) => api.get(`/expenses/group/${groupId}`);

@@ -20,6 +20,7 @@ import {
   createPoll,
   voteOnPoll,
   aiAssistExpense,
+  sendPaymentReminder,
 } from "../services/api";
 import toast, { Toaster } from "react-hot-toast";
 import {
@@ -50,6 +51,7 @@ import {
   FiPaperclip,
   FiCpu,
   FiZap,
+  FiBell,
 } from "react-icons/fi";
 
 const getCatEmoji = (cat) => {
@@ -2379,12 +2381,37 @@ export default function GroupDetail() {
   }
 
   function PayMeTab({ receivables }) {
+    const [reminding, setReminding] = React.useState({});
     const rows = Array.isArray(receivables) ? receivables : [];
     const totalReceivable = rows.reduce(
       (sum, item) => sum + Number(item.amount || 0),
       0,
     );
     const hasPendingAmount = rows.some((item) => Number(item.amount || 0) > 0.009);
+
+    const handleReminder = async (item) => {
+      const amount = Number(item.amount || 0);
+      if (amount <= 0.009 || reminding[item.memberId]) return;
+
+      setReminding((prev) => ({ ...prev, [item.memberId]: true }));
+      try {
+        await sendPaymentReminder(groupId, item.memberId);
+        toast.success(`Reminder sent to ${item.name || "member"}`);
+      } catch (err) {
+        const nextAllowedAt = err.response?.data?.nextAllowedAt;
+        if (err.response?.status === 429 && nextAllowedAt) {
+          const nextTime = new Date(nextAllowedAt).toLocaleString("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          });
+          toast.error(`Reminder already sent. Try after ${nextTime}`);
+        } else {
+          toast.error(err.response?.data?.msg || "Failed to send reminder");
+        }
+      } finally {
+        setReminding((prev) => ({ ...prev, [item.memberId]: false }));
+      }
+    };
 
     if (rows.length === 0 || !hasPendingAmount) {
       return (
@@ -2426,7 +2453,7 @@ export default function GroupDetail() {
             return (
               <div
                 key={item.memberId}
-                className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex items-center justify-between gap-3"
+                className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
@@ -2443,11 +2470,25 @@ export default function GroupDetail() {
                     </p>
                   </div>
                 </div>
-                <span className={`font-bold text-lg shrink-0 ${
-                  amount > 0.009 ? "text-emerald-400" : "text-gray-500"
-                }`}>
-                  ₹{amount.toFixed(2)}
-                </span>
+                <div className="flex items-center justify-between sm:justify-end gap-3">
+                  <span className={`font-bold text-lg shrink-0 ${
+                    amount > 0.009 ? "text-emerald-400" : "text-gray-500"
+                  }`}>
+                    ₹{amount.toFixed(2)}
+                  </span>
+                  <button
+                    onClick={() => handleReminder(item)}
+                    disabled={amount <= 0.009 || reminding[item.memberId]}
+                    className="inline-flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-800 disabled:text-gray-500 disabled:border-gray-700 disabled:cursor-not-allowed text-white border border-emerald-500 px-3 py-2 rounded-xl text-xs font-semibold transition"
+                  >
+                    {reminding[item.memberId] ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <FiBell size={13} />
+                    )}
+                    Reminder
+                  </button>
+                </div>
               </div>
             );
           })}
