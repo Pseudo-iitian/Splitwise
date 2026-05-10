@@ -215,6 +215,12 @@ export default function GroupDetail() {
     fetchAll();
   }, []);
 
+  useEffect(() => {
+    if (activeTab === "pay-me") {
+      fetchAll();
+    }
+  }, [activeTab]);
+
   // ── Pusher setup when chat tab opens ─────────────────────────────────────
   useEffect(() => {
     if (activeTab !== "chat") return;
