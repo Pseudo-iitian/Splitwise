@@ -5,6 +5,9 @@ const userSchema = new mongoose.Schema({
   email:    { type: String, required: true, unique: true },
   password: { type: String, required: true },
   avatar:   String,
+  resetPasswordToken: String,
+  resetPasswordExpires: Date,
+  passwordChangedAt: Date,
   upiId:    { type: String, default: '' },       // e.g. "name@gpay"
   upiVerified: { type: Boolean, default: false }, // verified flag
   upiVerificationStatus: {

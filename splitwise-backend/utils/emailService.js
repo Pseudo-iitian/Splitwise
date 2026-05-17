@@ -85,4 +85,58 @@ const sendPaymentReminderEmail = async ({
   }
 };
 
-module.exports = { sendExpenseNotificationEmail, sendPaymentReminderEmail };
+const sendPasswordResetEmail = async ({
+  toEmail,
+  toName,
+  resetLink
+}) => {
+  if (!toEmail || !resetLink) return false;
+
+  try {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': process.env.BREVO_API_KEY,
+      },
+      body: JSON.stringify({
+        sender: { name: 'Splitwise App', email: process.env.BREVO_SENDER_EMAIL },
+        to: [{ email: toEmail, name: toName }],
+        subject: 'Reset your Splitwise password',
+        htmlContent: `
+          <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111827">
+            <h2>Reset your password</h2>
+            <p>Hi ${toName || 'there'},</p>
+            <p>We received a request to reset your Splitwise password.</p>
+            <p>
+              <a href="${resetLink}" style="display:inline-block;padding:12px 18px;background:#10b981;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600">
+                Reset Password
+              </a>
+            </p>
+            <p>If the button does not work, use this link:</p>
+            <p><a href="${resetLink}">${resetLink}</a></p>
+            <p style="color:#6b7280;font-size:13px">This link expires in 5 minutes. If you did not request this, you can ignore this email.</p>
+          </div>
+        `
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      console.error('❌ Brevo password reset API error:', err);
+      return false;
+    }
+
+    console.log('✅ Password reset email sent via Brevo API');
+    return true;
+  } catch (err) {
+    console.error('❌ Password reset email error:', err.message);
+    return false;
+  }
+};
+
+module.exports = {
+  sendExpenseNotificationEmail,
+  sendPaymentReminderEmail,
+  sendPasswordResetEmail
+};

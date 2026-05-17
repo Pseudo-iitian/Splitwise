@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { forgotPassword, login, resetPassword } from '../services/api';
 import { setAuth } from '../store/authSlice';
 import toast, { Toaster } from 'react-hot-toast';
+import { FiEye, FiEyeOff } from 'react-icons/fi';
 import useSEO from '../hooks/useSEO';
 
 export default function Login() {
@@ -11,6 +12,9 @@ export default function Login() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [resetForm, setResetForm] = useState({ password: '', confirmPassword: '' });
   const [loading, setLoading] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
   const dispatch  = useDispatch();
   const navigate  = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -146,14 +150,24 @@ export default function Login() {
                       Forgot password?
                     </button>
                   </div>
-                  <input
-                    type="password"
-                    required
-                    value={loginForm.password}
-                    onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showLoginPassword ? 'text' : 'password'}
+                      required
+                      value={loginForm.password}
+                      onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-emerald-500 transition"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      aria-label={showLoginPassword ? 'Hide password' : 'Show password'}
+                      onClick={() => setShowLoginPassword(prev => !prev)}
+                      className="absolute right-3 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md bg-gray-700/80 text-gray-200 hover:bg-gray-600 hover:text-white transition"
+                    >
+                      {showLoginPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
                 <button
@@ -220,30 +234,50 @@ export default function Login() {
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     New Password
                   </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={resetForm.password}
-                    onChange={e => setResetForm({ ...resetForm, password: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showResetPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={resetForm.password}
+                      onChange={e => setResetForm({ ...resetForm, password: e.target.value })}
+                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-emerald-500 transition"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                      onClick={() => setShowResetPassword(prev => !prev)}
+                      className="absolute right-3 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md bg-gray-700/80 text-gray-200 hover:bg-gray-600 hover:text-white transition"
+                    >
+                      {showResetPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Confirm Password
                   </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={resetForm.confirmPassword}
-                    onChange={e => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
-                    className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showResetConfirmPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={resetForm.confirmPassword}
+                      onChange={e => setResetForm({ ...resetForm, confirmPassword: e.target.value })}
+                      className="w-full bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-emerald-500 transition"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      aria-label={showResetConfirmPassword ? 'Hide password' : 'Show password'}
+                      onClick={() => setShowResetConfirmPassword(prev => !prev)}
+                      className="absolute right-3 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md bg-gray-700/80 text-gray-200 hover:bg-gray-600 hover:text-white transition"
+                    >
+                      {showResetConfirmPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
                 <button

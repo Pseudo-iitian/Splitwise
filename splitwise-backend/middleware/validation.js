@@ -11,6 +11,15 @@ const loginSchema = Joi.object({
   password: Joi.string().required()
 });
 
+const forgotPasswordSchema = Joi.object({
+  email: Joi.string().email().required()
+});
+
+const resetPasswordSchema = Joi.object({
+  token: Joi.string().min(32).required(),
+  password: Joi.string().min(6).required()
+});
+
 const expenseSchema = Joi.object({
   description: Joi.string().required(),
   amount: Joi.number().positive().required(),
@@ -46,5 +55,7 @@ const expenseSchema = Joi.object({
 module.exports = {
   registerSchema,
   loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   expenseSchema
 };
