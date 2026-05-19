@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 
 import Login       from './pages/Login';
@@ -16,7 +16,12 @@ import VideoRoom   from './pages/VideoRoom';
 
 function PrivateRoute({ children }) {
   const { isLoggedIn } = useSelector(state => state.auth);
-  return isLoggedIn ? children : <Navigate to="/login" />;
+  const location = useLocation();
+  const redirectTo = `${location.pathname}${location.search}${location.hash}`;
+
+  return isLoggedIn
+    ? children
+    : <Navigate to={`/login?redirect=${encodeURIComponent(redirectTo)}`} replace />;
 }
 
 export default function App() {

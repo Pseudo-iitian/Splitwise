@@ -26,6 +26,7 @@ export default function Login() {
       ? 'forgot'
       : 'login';
   const resetToken = searchParams.get('token') || '';
+  const redirectPath = searchParams.get('redirect') || '/';
 
   const setMode = (nextMode) => {
     if (nextMode === 'login') {
@@ -45,7 +46,7 @@ export default function Login() {
       const res = await login(loginForm);
       dispatch(setAuth(res.data));
       toast.success('Welcome back!');
-      navigate('/');
+      navigate(redirectPath);
     } catch (err) {
       toast.error(err.response?.data?.msg || 'Login failed');
     } finally {

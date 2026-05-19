@@ -3,7 +3,9 @@ const router      = express.Router({ mergeParams: true });
 const Pusher      = require('pusher');
 const auth        = require('../middleware/auth');
 const ChatMessage = require('../models/ChatMessage');
+const Group       = require('../models/Group');
 const { cloudinary, upload } = require('../utils/cloudinary');
+const { sendChatNotificationEmail } = require('../utils/emailService');
 
 // Init Pusher
 const pusher = new Pusher({
@@ -23,9 +25,53 @@ const broadcast = async (groupId, eventName, payload) => {
   }
 };
 
+const getFrontendBaseUrl = () =>
+  (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+
+const getGroupChatUrl = (groupId) =>
+  `${getFrontendBaseUrl()}/group/${groupId}?tab=chat`;
+
+const getGroupForMember = async (groupId, userId) => {
+  const group = await Group.findById(groupId).populate('members', 'name email');
+  if (!group) return { status: 404, error: 'Group not found' };
+
+  const isMember = group.members.some(member => member._id.toString() === userId);
+  if (!isMember) return { status: 403, error: 'Not authorized for this group chat' };
+
+  return { group };
+};
+
+const sendGroupChatEmailNotification = async ({ group, messageDoc }) => {
+  try {
+    const recipients = group.members.map(member => member.email).filter(Boolean);
+    if (!recipients.length) return;
+
+    const payload = {
+      recipients,
+      groupName: group.name,
+      senderName: messageDoc.sender?.name,
+      senderEmail: messageDoc.sender?.email,
+      messageType: messageDoc.type,
+      messageText:
+        messageDoc.type === 'poll'
+          ? messageDoc.poll?.question
+          : messageDoc.message,
+      fileName: messageDoc.fileName,
+      chatUrl: getGroupChatUrl(group._id),
+    };
+
+    await sendChatNotificationEmail(payload);
+  } catch (err) {
+    console.error('CHAT_EMAIL_ERROR:', err.message);
+  }
+};
+
 // ─── GET messages for a group (last 100) ─────────────────────────────────────
 router.get('/', auth, async (req, res) => {
   try {
+    const access = await getGroupForMember(req.params.groupId, req.user.id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+
     const messages = await ChatMessage.find({ groupId: req.params.groupId })
       .populate('sender', 'name email')
       .sort({ createdAt: 1 })
@@ -43,6 +89,9 @@ router.post('/', auth, async (req, res) => {
     const { message } = req.body;
     if (!message?.trim()) return res.status(400).json({ error: 'Message cannot be empty' });
 
+    const access = await getGroupForMember(req.params.groupId, req.user.id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+
     const chatMsg = await ChatMessage.create({
       groupId: req.params.groupId,
       sender:  req.user.id,
@@ -53,6 +102,7 @@ router.post('/', auth, async (req, res) => {
     const populated = await ChatMessage.findById(chatMsg._id).populate('sender', 'name email');
 
     await broadcast(req.params.groupId, 'new-message', populated);
+    await sendGroupChatEmailNotification({ group: access.group, messageDoc: populated });
     res.status(201).json(populated);
   } catch (err) {
     console.error('CHAT_ERROR:', err);
@@ -64,6 +114,9 @@ router.post('/', auth, async (req, res) => {
 router.post('/media', auth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const access = await getGroupForMember(req.params.groupId, req.user.id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
 
     const mime = req.file.mimetype || '';
     let type = 'file';
@@ -84,6 +137,7 @@ router.post('/media', auth, upload.single('file'), async (req, res) => {
 
     const populated = await ChatMessage.findById(chatMsg._id).populate('sender', 'name email');
     await broadcast(req.params.groupId, 'new-message', populated);
+    await sendGroupChatEmailNotification({ group: access.group, messageDoc: populated });
     res.status(201).json(populated);
   } catch (err) {
     console.error('CHAT_MEDIA_ERROR:', err);
@@ -99,6 +153,9 @@ router.post('/poll', auth, async (req, res) => {
     if (!Array.isArray(options) || options.length < 2)
       return res.status(400).json({ error: 'At least 2 options required' });
 
+    const access = await getGroupForMember(req.params.groupId, req.user.id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+
     const chatMsg = await ChatMessage.create({
       groupId: req.params.groupId,
       sender:  req.user.id,
@@ -113,6 +170,7 @@ router.post('/poll', auth, async (req, res) => {
 
     const populated = await ChatMessage.findById(chatMsg._id).populate('sender', 'name email');
     await broadcast(req.params.groupId, 'new-message', populated);
+    await sendGroupChatEmailNotification({ group: access.group, messageDoc: populated });
     res.status(201).json(populated);
   } catch (err) {
     console.error('CHAT_POLL_ERROR:', err);
@@ -123,6 +181,9 @@ router.post('/poll', auth, async (req, res) => {
 // ─── PATCH: vote on a poll option ────────────────────────────────────────────
 router.patch('/:messageId/vote', auth, async (req, res) => {
   try {
+    const access = await getGroupForMember(req.params.groupId, req.user.id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+
     const { optionIndex } = req.body;
     const msg = await ChatMessage.findById(req.params.messageId);
     if (!msg || msg.type !== 'poll') return res.status(404).json({ error: 'Poll not found' });
@@ -152,6 +213,9 @@ router.patch('/:messageId/vote', auth, async (req, res) => {
 // ─── DELETE a message (only sender can delete) ────────────────────────────────
 router.delete('/:messageId', auth, async (req, res) => {
   try {
+    const access = await getGroupForMember(req.params.groupId, req.user.id);
+    if (access.error) return res.status(access.status).json({ error: access.error });
+
     const msg = await ChatMessage.findById(req.params.messageId);
     if (!msg) return res.status(404).json({ error: 'Message not found' });
 

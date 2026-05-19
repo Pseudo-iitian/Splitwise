@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import Pusher from "pusher-js";
 import {
@@ -88,9 +88,20 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 };
 
+const TABS = [
+  "expenses",
+  "balances",
+  "history",
+  "chat",
+  "spending",
+  "pay-me",
+  "video",
+];
+
 export default function GroupDetail() {
   const { id: groupId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useSelector((state) => state.auth);
 
   const [expenses, setExpenses] = useState([]);
@@ -100,7 +111,9 @@ export default function GroupDetail() {
     settlements: [],
   });
   const [history, setHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState("expenses");
+  const requestedTab = searchParams.get("tab");
+  const initialTab = TABS.includes(requestedTab) ? requestedTab : "expenses";
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [expenseSubTab, setExpenseSubTab] = useState("expenses"); // ✅ new
   const [expenseFilter, setExpenseFilter] = useState("all"); // ✅ new
   const [unpaidFilter, setUnpaidFilter] = useState("all");
@@ -214,6 +227,28 @@ export default function GroupDetail() {
   useEffect(() => {
     fetchAll();
   }, []);
+
+  useEffect(() => {
+    if (requestedTab && TABS.includes(requestedTab) && requestedTab !== activeTab) {
+      setActiveTab(requestedTab);
+      return;
+    }
+
+    if (!requestedTab && activeTab !== "expenses") {
+      setActiveTab("expenses");
+    }
+  }, [requestedTab, activeTab]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+
+    if (tab === "expenses") {
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
+    setSearchParams({ tab }, { replace: true });
+  };
 
   useEffect(() => {
     if (activeTab === "pay-me") {
@@ -752,16 +787,6 @@ export default function GroupDetail() {
     return acc;
   }, {});
 
-  const TABS = [
-    "expenses",
-    "balances",
-    "history",
-    "chat",
-    "spending",
-    "pay-me",
-    "video",
-  ];
-
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <Toaster />
@@ -818,7 +843,7 @@ export default function GroupDetail() {
         {TABS.map((tab) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => handleTabChange(tab)}
             className={`py-3 px-4 text-sm font-medium capitalize border-b-2 transition flex items-center gap-1.5 whitespace-nowrap ${
               activeTab === tab
                 ? "border-emerald-500 text-emerald-400"
